@@ -1,0 +1,15 @@
+[package]
+name = "glstudy"
+version = "0.1.0"
+authors = ["antlord"]
+edition = "2018"
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[dependencies]
+anyhow = "1.0"
+gl = "0.14.0"
+
+[dependencies.glfw]
+git = "https://github.com/bjz/glfw-rs.git"
+default-features = false
