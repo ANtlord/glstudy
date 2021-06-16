@@ -119,13 +119,13 @@ fn make_line() -> VertLine {
 }
 
 fn main() -> anyhow::Result<()> {
+    // initialize a window and a context ***********************************************************
     let mut glfw = glfw::init(glfw::FAIL_ON_ERRORS).unwrap();
-
     let (mut window, events) = glfw
         .create_window(
             WINDOW_WIDTH as u32,
             WINDOW_HEIGHT as u32,
-            "Hello this is window",
+            "Draw line demo",
             glfw::WindowMode::Windowed,
         )
         .expect("Failed to create GLFW window.");
@@ -134,15 +134,16 @@ fn main() -> anyhow::Result<()> {
     gl::load_with(|s| window.get_proc_address(s) as *const _);
     glfw::Context::make_current(&mut window);
     window.set_cursor_pos_polling(true);
+    // initialization ends *************************************************************************
+
+    // load shader data ****************************************************************************
     let mut line = make_line();
     unsafe {
         gl::Viewport(0, 0, WINDOW_WIDTH, WINDOW_HEIGHT);
         gl::ClearColor(0.3, 0.3, 0.5, 1.0);
     }
 
-    /***********************************************************************************************
-     * shader begins
-    ***********************************************************************************************/
+    // shader begins *******************************************************************************
     let vert_shader = render_gl::Shader::from_vert_source(
         render_gl::Source::Filepath("src/point.vert"),
     )
@@ -153,14 +154,13 @@ fn main() -> anyhow::Result<()> {
     )
     .context("fail building src/point.frag")?;
     let program = render_gl::Program::from_shaders(&[vert_shader, frag_shader]).unwrap();
-    /***********************************************************************************************
-     * shader ends
-    ***********************************************************************************************/
+    // shader ends ********************************************************************************
 
     while !window.should_close() {
         glfw.poll_events();
         for (_, event) in glfw::flush_messages(&events) {
             match event {
+                // catch mouse events **************************************************************
                 glfw::WindowEvent::CursorPos(xpos, _ypos) => {
                     line.x = (xpos as f32 / WINDOW_WIDTH as f32) * 2. - 1.;
                     line.update();
@@ -172,6 +172,7 @@ fn main() -> anyhow::Result<()> {
             }
         }
 
+        // drawing begins **************************************************************************
         unsafe {
             gl::Clear(gl::COLOR_BUFFER_BIT);
         }
@@ -182,6 +183,7 @@ fn main() -> anyhow::Result<()> {
             gl::DrawArrays(gl::LINES, 0, 2);
             line.unbind();
         }
+        // drawing ends ****************************************************************************
 
         glfw::Context::swap_buffers(&mut window);
     }
