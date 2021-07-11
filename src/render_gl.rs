@@ -5,37 +5,38 @@ use std::fs::File;
 use std::io::Read;
 
 pub struct Program {
+    gl: gl::Gl,
     id: gl::types::GLuint,
 }
 
 impl Program {
-    pub fn from_shaders(shaders: &[Shader]) -> anyhow::Result<Program, String> {
-        let program_id = unsafe { gl::CreateProgram() };
+    pub fn from_shaders(gl: gl::Gl, shaders: &[Shader]) -> anyhow::Result<Program, String> {
+        let program_id = unsafe { gl.CreateProgram() };
 
         for shader in shaders {
             unsafe {
-                gl::AttachShader(program_id, shader.id());
+                gl.AttachShader(program_id, shader.id());
             }
         }
 
         unsafe {
-            gl::LinkProgram(program_id);
+            gl.LinkProgram(program_id);
         }
 
         let mut success: gl::types::GLint = 1;
         unsafe {
-            gl::GetProgramiv(program_id, gl::LINK_STATUS, &mut success);
+            gl.GetProgramiv(program_id, gl::LINK_STATUS, &mut success);
         }
 
         if success == 0 {
             let mut len: gl::types::GLint = 0;
             unsafe {
-                gl::GetProgramiv(program_id, gl::INFO_LOG_LENGTH, &mut len);
+                gl.GetProgramiv(program_id, gl::INFO_LOG_LENGTH, &mut len);
             }
 
             let error = create_whitespace_cstring_with_len(len as usize);
             unsafe {
-                gl::GetProgramInfoLog(
+                gl.GetProgramInfoLog(
                     program_id,
                     len,
                     std::ptr::null_mut(),
@@ -48,13 +49,11 @@ impl Program {
 
         for shader in shaders {
             unsafe {
-                gl::DetachShader(program_id, shader.id());
+                gl.DetachShader(program_id, shader.id());
             }
         }
 
-        Ok(Program {
-            id: program_id,
-        })
+        Ok(Program {gl, id: program_id})
     }
 
     pub fn id(&self) -> gl::types::GLuint {
@@ -63,7 +62,7 @@ impl Program {
 
     pub fn set_used(&self) {
         unsafe {
-            gl::UseProgram(self.id);
+            self.gl.UseProgram(self.id);
         }
     }
 }
@@ -71,13 +70,14 @@ impl Program {
 impl Drop for Program {
     fn drop(&mut self) {
         unsafe {
-            gl::DeleteProgram(self.id);
+            self.gl.DeleteProgram(self.id);
         }
     }
 }
 
 pub struct Shader {
     id: gl::types::GLuint,
+    gl: gl::Gl,
 }
 
 pub enum Source<'a> {
@@ -87,30 +87,31 @@ pub enum Source<'a> {
 
 impl Shader {
     pub fn from_source(
+        gl: gl::Gl,
         source: Source,
         kind: gl::types::GLenum,
     ) -> anyhow::Result<Shader> {
         use Source::*;
 
         let id = match source {
-            Data(source) => shader_from_source(source, kind)?,
+            Data(source) => shader_from_source(&gl, source, kind)?,
             Filepath(filepath) => {
                 let mut file = File::open(filepath)?;
                 let mut buf = String::default();
                 file.read_to_string(&mut buf)?;
                 let source = CString::new(buf.as_str())?;
-                shader_from_source(&source, kind)?
+                shader_from_source(&gl, &source, kind)?
             }
         };
-        Ok(Shader { id })
+        Ok(Shader { gl, id })
     }
 
-    pub fn from_vert_source(source: Source) -> anyhow::Result<Shader> {
-        Shader::from_source(source, gl::VERTEX_SHADER)
+    pub fn from_vert_source(gl: gl::Gl, source: Source) -> anyhow::Result<Shader> {
+        Shader::from_source(gl, source, gl::VERTEX_SHADER)
     }
 
-    pub fn from_frag_source(source: Source) -> anyhow::Result<Shader> {
-        Shader::from_source(source, gl::FRAGMENT_SHADER)
+    pub fn from_frag_source(gl: gl::Gl, source: Source) -> anyhow::Result<Shader> {
+        Shader::from_source(gl, source, gl::FRAGMENT_SHADER)
     }
 
     pub fn id(&self) -> gl::types::GLuint {
@@ -121,35 +122,36 @@ impl Shader {
 impl Drop for Shader {
     fn drop(&mut self) {
         unsafe {
-            gl::DeleteShader(self.id);
+            self.gl.DeleteShader(self.id);
         }
     }
 }
 
 fn shader_from_source(
+    gl: &gl::Gl,
     source: &CStr,
     kind: gl::types::GLenum,
 ) -> anyhow::Result<gl::types::GLuint> {
-    let id = unsafe { gl::CreateShader(kind) };
+    let id = unsafe { gl.CreateShader(kind) };
     unsafe {
-        gl::ShaderSource(id, 1, &source.as_ptr(), std::ptr::null());
-        gl::CompileShader(id);
+        gl.ShaderSource(id, 1, &source.as_ptr(), std::ptr::null());
+        gl.CompileShader(id);
     }
 
     let mut success: gl::types::GLint = 1;
     unsafe {
-        gl::GetShaderiv(id, gl::COMPILE_STATUS, &mut success);
+        gl.GetShaderiv(id, gl::COMPILE_STATUS, &mut success);
     }
 
     if success == 0 {
         let mut len: gl::types::GLint = 0;
         unsafe {
-            gl::GetShaderiv(id, gl::INFO_LOG_LENGTH, &mut len);
+            gl.GetShaderiv(id, gl::INFO_LOG_LENGTH, &mut len);
         }
 
         let error = create_whitespace_cstring_with_len(len as usize);
         unsafe {
-            gl::GetShaderInfoLog(
+            gl.GetShaderInfoLog(
                 id,
                 len,
                 std::ptr::null_mut(),
