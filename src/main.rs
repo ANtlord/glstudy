@@ -156,6 +156,13 @@ fn main() -> anyhow::Result<()> {
     let program = render_gl::Program::from_shaders(&[vert_shader, frag_shader]).unwrap();
     // shader ends ********************************************************************************
 
+    if glfw.supports_raw_motion() {
+        window.set_cursor_mode(glfw::CursorMode::Disabled);
+        window.set_raw_mouse_motion(true);
+    } else {
+        println!("mouse raw motion is not supported");
+    }
+
     while !window.should_close() {
         glfw.poll_events();
         for (_, event) in glfw::flush_messages(&events) {
