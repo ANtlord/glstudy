@@ -1,118 +1,29 @@
 use anyhow::Context;
+use anyhow::anyhow;
 use gl;
 use glfw;
 use glfw::{Action, Key};
 
+mod entities;
 mod render_gl;
+mod buffer;
 
 const WINDOW_WIDTH: i32 = 900;
 const WINDOW_HEIGHT: i32 = 700;
 
-pub struct Vertex {
-    inner: [f32; 3],
-}
-
-impl From<[f32; 3]> for Vertex {
-    fn from(data: [f32; 3]) -> Self {
-        Self { inner: data }
-    }
-}
-
-impl Vertex {
-    pub fn vertex_attrib_pointer(gl: &gl::Gl) {
-        unsafe {
-            gl.EnableVertexAttribArray(0);
-            gl.VertexAttribPointer(
-                0,
-                3,
-                gl::FLOAT,
-                gl::FALSE,
-                (3 * std::mem::size_of::<f32>()) as gl::types::GLint,
-                std::ptr::null(),
-            );
-        }
-    }
-}
-
-struct VertLine {
-    gl: gl::Gl,
-    x: f32,
-    vbo: gl::types::GLuint,
-    vao: gl::types::GLuint,
-}
-
-impl VertLine {
-    fn update(&self) {
-        let vertices: Vec<Vertex> = vec![
-            [self.x, 1.0, 0.0].into(),
-            [self.x, -1.0, 0.0].into(),
-        ];
-
-        unsafe {
-            self.gl.BindBuffer(gl::ARRAY_BUFFER, self.vbo);
-            buffer_dynamic_draw(&self.gl, &vertices);
-            self.gl.BindBuffer(gl::ARRAY_BUFFER, 0);
-        }
-    }
-
-    fn bind(&self) {
-        unsafe {
-            self.gl.BindVertexArray(self.vao);
-        }
-    }
-
-    fn unbind(&self) {
-        unsafe {
-            self.gl.BindVertexArray(0);
-        }
-    }
-}
-
-fn new_array_buffer(gl: &gl::Gl) -> gl::types::GLuint {
-    let mut vbo: gl::types::GLuint = 0;
-    unsafe {
-        gl.GenBuffers(1, &mut vbo);
-    }
-    vbo
-}
-
-fn new_vertex_array(gl: &gl::Gl) -> gl::types::GLuint {
-    let mut vao = 0;
-    unsafe {
-        gl.GenVertexArrays(1, &mut vao);
-    }
-    vao
-}
-
-fn buffer_dynamic_draw<T>(gl: &gl::Gl, data: &[T]) {
-    unsafe {
-        gl.BufferData(
-            gl::ARRAY_BUFFER,
-            (data.len() * std::mem::size_of::<T>()) as gl::types::GLsizeiptr,
-            data.as_ptr() as *const gl::types::GLvoid,
-            gl::DYNAMIC_DRAW,
-        );
-    }
-}
-
-fn make_line(gl: gl::Gl) -> VertLine {
-    let vertices: Vec<Vertex> = vec![
-        [-1.0, 1.0, 0.0].into(),
-        [-1.0, -1.0, 0.0].into(),
-    ];
-
-    unsafe {
-        let vbo = new_array_buffer(&gl);
-        let vao = new_vertex_array(&gl);
-        gl.BindVertexArray(vao);
-        gl.BindBuffer(gl::ARRAY_BUFFER, vbo);
-        buffer_dynamic_draw(&gl, &vertices);
-        Vertex::vertex_attrib_pointer(&gl);
-        gl.BindBuffer(gl::ARRAY_BUFFER, 0);
-        gl.BindVertexArray(0);
-
-        VertLine { gl, vao, vbo, x: -1. }
-    }
+fn build_shader_program(
+    gl: &gl::Gl,
+    vert: &str,
+    frag: &str,
+) -> anyhow::Result<render_gl::Program> {
+    let vert_shader =
+        render_gl::Shader::from_vert_source(gl.clone(), render_gl::Source::Filepath(vert))
+            .with_context(|| format!("fail building shader {}", vert))?;
+    let frag_shader =
+        render_gl::Shader::from_frag_source(gl.clone(), render_gl::Source::Filepath(frag))
+            .with_context(|| format!("fail building shader {}", frag))?;
+    render_gl::Program::from_shaders(gl.clone(), &[vert_shader, frag_shader])
+        .map_err(|e| anyhow!("fail building program: {}", e))
 }
 
 fn main() -> anyhow::Result<()> {
@@ -134,24 +45,32 @@ fn main() -> anyhow::Result<()> {
     // initialization ends *************************************************************************
 
     // load shader data ****************************************************************************
-    let mut line = make_line(gl.clone());
+    let mut line = entities::VertLine::new(gl.clone());
     unsafe {
         gl.Viewport(0, 0, WINDOW_WIDTH, WINDOW_HEIGHT);
         gl.ClearColor(0.3, 0.3, 0.5, 1.0);
     }
 
     // shader begins *******************************************************************************
-    let vert_shader = render_gl::Shader::from_vert_source(
-        gl.clone(), render_gl::Source::Filepath("src/point.vert"),
-    )
-    .context("fail building point.vert")?;
+    // let vertex_chromatic_program = build_shader_program(
+    //     &gl,
+    //     "assets/shaders/vertex_chromatic.vert",
+    //     "assets/shaders/vertex_chromatic.frag",
+    // ).context("fail building vertex chromatic program")?;
 
-    let frag_shader = render_gl::Shader::from_frag_source(
-        gl.clone(), render_gl::Source::Filepath("src/point.frag"),
-    )
-    .context("fail building src/point.frag")?;
-    let program = render_gl::Program::from_shaders(gl.clone(), &[vert_shader, frag_shader]).unwrap();
+    let point_program = build_shader_program(
+        &gl,
+        "assets/shaders/point.vert",
+        "assets/shaders/point.frag",
+    ).context("fail building point program")?;
     // shader ends ********************************************************************************
+
+    unsafe {
+        let err = gl.GetError();
+        if err != gl::NO_ERROR {
+            panic!("opengl error: {}", err);
+        }
+    }
 
     while !window.should_close() {
         glfw.poll_events();
@@ -174,12 +93,20 @@ fn main() -> anyhow::Result<()> {
             gl.Clear(gl::COLOR_BUFFER_BIT);
         }
 
-        program.set_used();
+        point_program.set_used();
         unsafe {
             line.bind();
             gl.DrawArrays(gl::LINES, 0, 2);
             line.unbind();
         }
+
+        unsafe {
+            let err = gl.GetError();
+            if err != gl::NO_ERROR {
+                panic!("opengl error: {}", err);
+            }
+        }
+
         // drawing ends ****************************************************************************
 
         glfw::Context::swap_buffers(&mut window);

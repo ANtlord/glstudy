@@ -53,7 +53,7 @@ impl Program {
             }
         }
 
-        Ok(Program {gl, id: program_id})
+        Ok(Program { gl, id: program_id })
     }
 
     pub fn id(&self) -> gl::types::GLuint {
