@@ -1,3 +1,4 @@
+use anyhow::Context;
 use gl;
 use std;
 use std::ffi::{CStr, CString};
@@ -56,9 +57,34 @@ impl Program {
         Ok(Program { gl, id: program_id })
     }
 
-    pub fn id(&self) -> gl::types::GLuint {
-        self.id
-    }
+    // pub fn attrib_location(&self, name: &str) -> anyhow::Result<gl::types::GLint> {
+    //     unsafe {
+    //         let name_c = CString::new(name)
+    //             .with_context(|| format!("fail making C string from {}", name))?;
+    //         let loc = self.gl.GetAttribLocation(self.id(), name_c.as_ptr());
+    //         if self.gl.GetError() != gl::NO_ERROR {
+    //             anyhow::bail!("fail getting attribute locations `{}`", name)
+    //         } else {
+    //             Ok(loc)
+    //         }
+    //     }
+    // }
+
+    // pub fn active_attrib_count(&self) -> anyhow::Result<gl::types::GLint> {
+    //     unsafe {
+    //         let mut count = 0;
+    //         self.gl.GetProgramiv(self.id(), gl::ACTIVE_ATTRIBUTES, &mut count);
+    //         if self.gl.GetError() != gl::NO_ERROR {
+    //             anyhow::bail!("fail counting active attribute locations")
+    //         } else {
+    //             Ok(count)
+    //         }
+    //     }
+    // }
+
+    // pub fn id(&self) -> gl::types::GLuint {
+    //     self.id
+    // }
 
     pub fn set_used(&self) {
         unsafe {

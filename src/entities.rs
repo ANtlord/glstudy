@@ -1,5 +1,5 @@
-fn memsize<T>(count: usize) -> gl::types::GLint {
-    (count * std::mem::size_of::<f32>()) as _
+const fn memsize<T>(count: usize) -> gl::types::GLint {
+    (count * std::mem::size_of::<T>()) as _
 }
 
 fn new_array_buffer(gl: &gl::Gl) -> gl::types::GLuint {
@@ -35,35 +35,79 @@ pub struct VertexChromatic {
     color: [f32; 3],
 }
 
-impl VertexChromatic {
-    pub fn vertex_attrib_pointer(gl: &gl::Gl) {
+impl From<[f32; 6]> for VertexChromatic {
+    fn from(data: [f32; 6]) -> Self {
+        Self {
+            position: [data[0], data[1], data[2]],
+            color: [data[3], data[4], data[5]],
+        }
+    }
+}
+
+impl VertexAttribPointer for VertexChromatic {
+    fn vertex_attrib_pointer(gl: &gl::Gl) {
         // locations are defined in the corresponding vertex shader
-        let is_normalized = gl::FALSE;
-        let position_attribute_location = 0;
-        let position_attribute_size = 3;
-        let color_attribute_location = 1;
-        let color_attribute_size = 3;
+        const IS_NORMALIZED: u8 = gl::FALSE;
+        const POSITION_ATTRIBUTE_LOCATION: u32 = 0;
+        const POSITION_ATTRIBUTE_SIZE: i32 = 3;
+        const COLOR_ATTRIBUTE_LOCATION: u32 = 1;
+        const COLOR_ATTRIBUTE_SIZE: i32 = 3;
 
         unsafe {
-            gl.EnableVertexAttribArray(position_attribute_location);
+            gl.EnableVertexAttribArray(POSITION_ATTRIBUTE_LOCATION);
             gl.VertexAttribPointer(
-                position_attribute_location,
-                position_attribute_size,
+                POSITION_ATTRIBUTE_LOCATION,
+                POSITION_ATTRIBUTE_SIZE,
                 gl::FLOAT,
-                is_normalized,
-                memsize::<f32>(position_attribute_size as _),
+                IS_NORMALIZED,
+                memsize::<f32>((POSITION_ATTRIBUTE_SIZE + COLOR_ATTRIBUTE_SIZE) as _),
+                // data for position of vertex is the FIRST 3 float numbers.
                 std::ptr::null(),
             );
 
-            gl.EnableVertexAttribArray(color_attribute_location);
+            gl.EnableVertexAttribArray(COLOR_ATTRIBUTE_LOCATION);
             gl.VertexAttribPointer(
-                color_attribute_location,
-                color_attribute_size,
+                COLOR_ATTRIBUTE_LOCATION,
+                COLOR_ATTRIBUTE_SIZE,
                 gl::FLOAT,
-                is_normalized,
-                memsize::<f32>(color_attribute_size as _),
-                memsize::<f32>(position_attribute_size as _) as *const _,
+                IS_NORMALIZED,
+                memsize::<f32>((POSITION_ATTRIBUTE_SIZE + COLOR_ATTRIBUTE_SIZE) as _),
+                // data for position of vertex is the SECOND 3 float numbers.
+                memsize::<f32>(POSITION_ATTRIBUTE_SIZE as _) as *const _,
             );
+        }
+    }
+}
+
+pub struct Triangle {
+    gl: gl::Gl,
+    vbo: gl::types::GLuint,
+    vao: gl::types::GLuint,
+}
+
+impl Triangle {
+    pub fn new(gl: gl::Gl) -> Self {
+        let vertices: Vec<VertexChromatic> = vec![
+            [-0.5, -0.5, 0., 1., 0., 0.].into(),
+            [0.0, 0.5, 0., 0., 1., 0.].into(),
+            [0.5, -0.5, 0., 0., 0., 1.].into(),
+        ];
+
+        let (vao, vbo) =
+            unsafe { build_data::<_, VertexChromatic>(&gl, &vertices, gl::STATIC_DRAW) };
+
+        Self { vao, vbo, gl }
+    }
+
+    pub fn bind(&self) {
+        unsafe {
+            self.gl.BindVertexArray(self.vao);
+        }
+    }
+
+    pub fn unbind(&self) {
+        unsafe {
+            self.gl.BindVertexArray(0);
         }
     }
 }
@@ -79,18 +123,18 @@ impl From<[f32; 3]> for Vertex {
     }
 }
 
-impl Vertex {
-    pub fn vertex_attrib_pointer(gl: &gl::Gl) {
+impl VertexAttribPointer for Vertex {
+    fn vertex_attrib_pointer(gl: &gl::Gl) {
         unsafe {
-            let position_attribute_size = 3;
-            let position_attribute_location = 3; // SHOULD BE ERROR!!! Change to 1 to fix.
-            gl.EnableVertexAttribArray(position_attribute_location);
+            const POSITION_ATTRIBUTE_SIZE: i32 = 3;
+            const POSITION_ATTRIBUTE_LOCATION: gl::types::GLuint = 0;
+            gl.EnableVertexAttribArray(POSITION_ATTRIBUTE_LOCATION);
             gl.VertexAttribPointer(
-                position_attribute_location,
-                position_attribute_size,
+                POSITION_ATTRIBUTE_LOCATION,
+                POSITION_ATTRIBUTE_SIZE,
                 gl::FLOAT,
                 gl::FALSE,
-                memsize::<f32>(3),
+                memsize::<f32>(POSITION_ATTRIBUTE_SIZE as _),
                 std::ptr::null(),
             );
         }
@@ -98,33 +142,44 @@ impl Vertex {
 }
 
 pub struct VertLine {
-    gl: gl::Gl,
     pub x: f32,
+    gl: gl::Gl,
     vbo: gl::types::GLuint,
     vao: gl::types::GLuint,
 }
 
+trait VertexAttribPointer {
+    fn vertex_attrib_pointer(_: &gl::Gl);
+}
+
+unsafe fn build_data<T, VertexDataInterpreter: VertexAttribPointer>(
+    gl: &gl::Gl,
+    data: &[T],
+    draw: gl::types::GLenum,
+) -> (u32, u32) {
+    let vbo = new_array_buffer(&gl);
+    let vao = new_vertex_array(&gl);
+    gl.BindVertexArray(vao);
+    gl.BindBuffer(gl::ARRAY_BUFFER, vbo);
+    gl.BufferData(
+        gl::ARRAY_BUFFER,
+        (data.len() * std::mem::size_of::<T>()) as _,
+        data.as_ptr() as *const _,
+        draw,
+    );
+    VertexDataInterpreter::vertex_attrib_pointer(&gl);
+    gl.BindBuffer(gl::ARRAY_BUFFER, 0);
+    gl.BindVertexArray(0);
+    (vao, vbo)
+}
 
 impl VertLine {
     pub fn new(gl: gl::Gl) -> Self {
         let vertices: Vec<Vertex> = vec![[-1.0, 1.0, 0.0].into(), [-1.0, -1.0, 0.0].into()];
 
         unsafe {
-            let vbo = new_array_buffer(&gl);
-            let vao = new_vertex_array(&gl);
-            gl.BindVertexArray(vao);
-            gl.BindBuffer(gl::ARRAY_BUFFER, vbo);
-            buffer_dynamic_draw(&gl, &vertices);
-            Vertex::vertex_attrib_pointer(&gl);
-            gl.BindBuffer(gl::ARRAY_BUFFER, 0);
-            gl.BindVertexArray(0);
-
-            VertLine {
-                gl,
-                vao,
-                vbo,
-                x: -1.,
-            }
+            let (vao, vbo) = build_data::<_, Vertex>(&gl, &vertices, gl::DYNAMIC_DRAW);
+            VertLine { gl, vao, vbo, x: -1. }
         }
     }
 

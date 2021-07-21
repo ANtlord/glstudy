@@ -46,17 +46,18 @@ fn main() -> anyhow::Result<()> {
 
     // load shader data ****************************************************************************
     let mut line = entities::VertLine::new(gl.clone());
+    let triangle = entities::Triangle::new(gl.clone());
     unsafe {
         gl.Viewport(0, 0, WINDOW_WIDTH, WINDOW_HEIGHT);
         gl.ClearColor(0.3, 0.3, 0.5, 1.0);
     }
 
     // shader begins *******************************************************************************
-    // let vertex_chromatic_program = build_shader_program(
-    //     &gl,
-    //     "assets/shaders/vertex_chromatic.vert",
-    //     "assets/shaders/vertex_chromatic.frag",
-    // ).context("fail building vertex chromatic program")?;
+    let vertex_chromatic_program = build_shader_program(
+        &gl,
+        "assets/shaders/vertex_chromatic.vert",
+        "assets/shaders/vertex_chromatic.frag",
+    ).context("fail building vertex chromatic program")?;
 
     let point_program = build_shader_program(
         &gl,
@@ -91,6 +92,13 @@ fn main() -> anyhow::Result<()> {
         // drawing begins **************************************************************************
         unsafe {
             gl.Clear(gl::COLOR_BUFFER_BIT);
+        }
+
+        vertex_chromatic_program.set_used();
+        unsafe {
+            triangle.bind();
+            gl.DrawArrays(gl::TRIANGLES, 0, 3);
+            triangle.unbind();
         }
 
         point_program.set_used();
