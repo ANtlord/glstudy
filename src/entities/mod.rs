@@ -1,5 +1,7 @@
 mod vertex;
 
+use crate::entities::vertex::VertexAttribPointer;
+
 fn new_array_buffer(gl: &gl::Gl) -> gl::types::GLuint {
     let mut vbo: gl::types::GLuint = 0;
     unsafe {
@@ -119,3 +121,68 @@ impl VertLine {
         }
     }
 }
+
+pub struct Parallelogram {
+    gl: gl::Gl,
+    vbo: gl::types::GLuint,
+    vao: gl::types::GLuint,
+}
+
+impl Parallelogram {
+    pub fn new(gl: gl::Gl) -> Self {
+        let data: Vec<vertex::Textured> = vec![
+            [-0.5, -0.5, 0., 0., 0., 0., 0.0, 0.0].into(),
+            [-0.5, 0.5, 0.,  0., 0., 0., 0.0, 1.0].into(),
+            [0.5, 0.5, 0.,   0., 0., 0., 1.0, 1.0].into(),
+            [0.5, -0.5, 0.,  0., 0., 0., 1.0, 0.0].into(),
+        ];
+
+        let indices: Vec<u32> = vec![
+            0, 1, 2,
+            0, 3, 2
+        ];
+
+        let (vao, vbo) = //unsafe { build_data(&gl, &data, gl::STATIC_DRAW) };
+            unsafe {
+                let vbo = new_array_buffer(&gl);
+                let vao = new_vertex_array(&gl);
+                let ebo = new_vertex_array(&gl);
+                gl.BindVertexArray(vao);
+                gl.BindBuffer(gl::ARRAY_BUFFER, vbo);
+                gl.BufferData(
+                    gl::ARRAY_BUFFER,
+                    (data.len() * std::mem::size_of::<vertex::Textured>()) as _,
+                    data.as_ptr() as *const _,
+                    gl::STATIC_DRAW,
+                );
+
+                gl.BindBuffer(gl::ELEMENT_ARRAY_BUFFER, ebo);
+                gl.BufferData(
+                    gl::ELEMENT_ARRAY_BUFFER,
+                    (indices.len() * std::mem::size_of::<u32>()) as _,
+                    indices.as_ptr() as *const _,
+                    gl::STATIC_DRAW,
+                );
+                vertex::Textured::vertex_attrib_pointer(&gl);
+                gl.BindBuffer(gl::ARRAY_BUFFER, 0);
+                gl.BindVertexArray(0);
+                (vao, vbo)
+            };
+
+        Self { vao, vbo, gl }
+    }
+
+    pub fn bind(&self) {
+        unsafe {
+            self.gl.BindVertexArray(self.vao);
+        }
+    }
+
+    pub fn unbind(&self) {
+        unsafe {
+            self.gl.BindVertexArray(0);
+        }
+    }
+}
+
+

@@ -49,6 +49,7 @@ fn main() -> anyhow::Result<()> {
     // load shader data ****************************************************************************
     let mut line = entities::VertLine::new(gl.clone());
     let triangle = entities::Triangle::new(gl.clone());
+    let parallelogram = entities::Parallelogram::new(gl.clone());
     unsafe {
         gl.Viewport(0, 0, WINDOW_WIDTH, WINDOW_HEIGHT);
         gl.ClearColor(0.3, 0.3, 0.5, 1.0);
@@ -109,10 +110,17 @@ fn main() -> anyhow::Result<()> {
 
         vertex_textured_program.set_used();
         unsafe {
-            triangle.bind();
-            gl.DrawArrays(gl::TRIANGLES, 0, 3);
-            triangle.unbind();
+            parallelogram.bind();
+            gl.DrawElements(gl::TRIANGLES, 6, gl::UNSIGNED_INT, 0 as *const _);
+            parallelogram.unbind();
         }
+
+        // vertex_textured_program.set_used();
+        // unsafe {
+        //     triangle.bind();
+        //     gl.DrawArrays(gl::TRIANGLES, 0, 3);
+        //     triangle.unbind();
+        // }
 
         point_program.set_used();
         unsafe {
