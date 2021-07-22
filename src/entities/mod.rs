@@ -18,17 +18,6 @@ fn new_vertex_array(gl: &gl::Gl) -> gl::types::GLuint {
     vao
 }
 
-fn buffer_dynamic_draw<T>(gl: &gl::Gl, data: &[T]) {
-    unsafe {
-        gl.BufferData(
-            gl::ARRAY_BUFFER,
-            (data.len() * std::mem::size_of::<T>()) as gl::types::GLsizeiptr,
-            data.as_ptr() as *const gl::types::GLvoid,
-            gl::DYNAMIC_DRAW,
-        );
-    }
-}
-
 pub struct Triangle {
     gl: gl::Gl,
     vbo: gl::types::GLuint,
@@ -78,12 +67,7 @@ unsafe fn build_data<T: vertex::VertexAttribPointer>(
     let vao = new_vertex_array(&gl);
     gl.BindVertexArray(vao);
     gl.BindBuffer(gl::ARRAY_BUFFER, vbo);
-    gl.BufferData(
-        gl::ARRAY_BUFFER,
-        (data.len() * std::mem::size_of::<T>()) as _,
-        data.as_ptr() as *const _,
-        draw,
-    );
+    buffer_data(gl, gl::ARRAY_BUFFER, data, draw);
     T::vertex_attrib_pointer(&gl);
     gl.BindBuffer(gl::ARRAY_BUFFER, 0);
     gl.BindVertexArray(0);
@@ -104,7 +88,7 @@ impl VertLine {
         let vertices: Vec<vertex::Bald> = vec![[self.x, 1.0, 0.0].into(), [self.x, -1.0, 0.0].into()];
         unsafe {
             self.gl.BindBuffer(gl::ARRAY_BUFFER, self.vbo);
-            buffer_dynamic_draw(&self.gl, &vertices);
+            buffer_data(&self.gl, gl::ARRAY_BUFFER, &vertices, gl::DYNAMIC_DRAW);
             self.gl.BindBuffer(gl::ARRAY_BUFFER, 0);
         }
     }
@@ -120,6 +104,15 @@ impl VertLine {
             self.gl.BindVertexArray(0);
         }
     }
+}
+
+unsafe fn buffer_data<T>(gl: &gl::Gl, target: gl::types::GLenum, data: &[T], draw: gl::types::GLenum) {
+    gl.BufferData(
+        target,
+        (data.len() * std::mem::size_of::<T>()) as _,
+        data.as_ptr() as *const _,
+        draw,
+    );
 }
 
 pub struct Parallelogram {
@@ -148,21 +141,13 @@ impl Parallelogram {
                 let vao = new_vertex_array(&gl);
                 let ebo = new_vertex_array(&gl);
                 gl.BindVertexArray(vao);
+
                 gl.BindBuffer(gl::ARRAY_BUFFER, vbo);
-                gl.BufferData(
-                    gl::ARRAY_BUFFER,
-                    (data.len() * std::mem::size_of::<vertex::Textured>()) as _,
-                    data.as_ptr() as *const _,
-                    gl::STATIC_DRAW,
-                );
+                buffer_data(&gl, gl::ARRAY_BUFFER, &data, gl::STATIC_DRAW);
 
                 gl.BindBuffer(gl::ELEMENT_ARRAY_BUFFER, ebo);
-                gl.BufferData(
-                    gl::ELEMENT_ARRAY_BUFFER,
-                    (indices.len() * std::mem::size_of::<u32>()) as _,
-                    indices.as_ptr() as *const _,
-                    gl::STATIC_DRAW,
-                );
+                buffer_data(&gl, gl::ELEMENT_ARRAY_BUFFER, &indices, gl::STATIC_DRAW);
+
                 vertex::Textured::vertex_attrib_pointer(&gl);
                 gl.BindBuffer(gl::ARRAY_BUFFER, 0);
                 gl.BindVertexArray(0);
