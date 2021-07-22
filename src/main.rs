@@ -3,10 +3,12 @@ use anyhow::anyhow;
 use gl;
 use glfw;
 use glfw::{Action, Key};
+use image;
 
 mod entities;
 mod render_gl;
 mod buffer;
+mod texture;
 
 const WINDOW_WIDTH: i32 = 900;
 const WINDOW_HEIGHT: i32 = 700;
@@ -64,7 +66,18 @@ fn main() -> anyhow::Result<()> {
         "assets/shaders/point.vert",
         "assets/shaders/point.frag",
     ).context("fail building point program")?;
+
+    let vertex_textured_program = build_shader_program(
+        &gl,
+        "assets/shaders/vertex_textured.vert",
+        "assets/shaders/vertex_textured.frag",
+    ).context("fail building vertex texture program")?;
     // shader ends ********************************************************************************
+
+    // texture begins
+    let wallimg = image::open("assets/textures/wall.jpg").context("fail loading")?.into_rgb8();
+    let wall_texture = texture::Texture::new(gl.clone(), wallimg.as_raw(), wallimg.dimensions());
+    // texture ends
 
     unsafe {
         let err = gl.GetError();
@@ -94,7 +107,7 @@ fn main() -> anyhow::Result<()> {
             gl.Clear(gl::COLOR_BUFFER_BIT);
         }
 
-        vertex_chromatic_program.set_used();
+        vertex_textured_program.set_used();
         unsafe {
             triangle.bind();
             gl.DrawArrays(gl::TRIANGLES, 0, 3);

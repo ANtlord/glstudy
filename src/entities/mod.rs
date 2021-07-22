@@ -35,14 +35,14 @@ pub struct Triangle {
 
 impl Triangle {
     pub fn new(gl: gl::Gl) -> Self {
-        let vertices: Vec<vertex::Chromatic> = vec![
-            [-0.5, -0.5, 0., 1., 0., 0.].into(),
-            [0.0, 0.5, 0., 0., 1., 0.].into(),
-            [0.5, -0.5, 0., 0., 0., 1.].into(),
+        let vertices: Vec<vertex::Textured> = vec![
+            [-0.5, -0.5, 0., 0., 0., 0.,  0., 0.].into(),
+            [0.0, 0.5, 0.,   0., 0., 0.,  0.5, 1.].into(),
+            [0.5, -0.5, 0.,  0., 0., 0.,  1., 0.].into(),
         ];
 
         let (vao, vbo) =
-            unsafe { build_data::<_, vertex::Chromatic>(&gl, &vertices, gl::STATIC_DRAW) };
+            unsafe { build_data(&gl, &vertices, gl::STATIC_DRAW) };
 
         Self { vao, vbo, gl }
     }
@@ -67,7 +67,7 @@ pub struct VertLine {
     vao: gl::types::GLuint,
 }
 
-unsafe fn build_data<T, VertexDataInterpreter: vertex::VertexAttribPointer>(
+unsafe fn build_data<T: vertex::VertexAttribPointer>(
     gl: &gl::Gl,
     data: &[T],
     draw: gl::types::GLenum,
@@ -82,7 +82,7 @@ unsafe fn build_data<T, VertexDataInterpreter: vertex::VertexAttribPointer>(
         data.as_ptr() as *const _,
         draw,
     );
-    VertexDataInterpreter::vertex_attrib_pointer(&gl);
+    T::vertex_attrib_pointer(&gl);
     gl.BindBuffer(gl::ARRAY_BUFFER, 0);
     gl.BindVertexArray(0);
     (vao, vbo)
@@ -93,7 +93,7 @@ impl VertLine {
         let vertices: Vec<vertex::Bald> = vec![[-1.0, 1.0, 0.0].into(), [-1.0, -1.0, 0.0].into()];
 
         unsafe {
-            let (vao, vbo) = build_data::<_, vertex::Bald>(&gl, &vertices, gl::DYNAMIC_DRAW);
+            let (vao, vbo) = build_data(&gl, &vertices, gl::DYNAMIC_DRAW);
             VertLine { gl, vao, vbo, x: -1. }
         }
     }
