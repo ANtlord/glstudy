@@ -87,6 +87,19 @@ fn main() -> anyhow::Result<()> {
         }
     }
 
+    let cube_position_array = [
+        [ 0.0, 0.0, 0.0],
+        [ 2.0, 5.0, -15.0],
+        [-1.5, -2.2, -2.5],
+        [-3.8, -2.0, -12.3],
+        [ 2.4, -0.4, -3.5],
+        [-1.7, 3.0, -7.5],
+        [ 1.3, -2.0, -2.5],
+        [ 1.5, 2.0, -2.5],
+        [ 1.5, 0.2, -1.5],
+        [-1.3, 1.0, -1.5],
+    ];
+
     let mut xaxis = 0.;
     let mut yaxis = 0.;
     let mut is_around_x = false;
@@ -117,7 +130,7 @@ fn main() -> anyhow::Result<()> {
                     let mat = Matrix4::from_angle_x(Deg(xaxis));
                     let mat = mat * Matrix4::from_angle_y(Deg(yaxis));
                     vertex_textured_program.set_used();
-                    vertex_textured_program.set_uniform("model", &mat.as_ref() as &[f32; 16]);
+                    vertex_textured_program.set_uniform("model", &mat.as_ref() as &[f32; 16])?;
                 }
                 _ => {}
             }
@@ -131,7 +144,15 @@ fn main() -> anyhow::Result<()> {
         vertex_textured_program.set_used();
         unsafe {
             cube.bind();
-            gl.DrawElements(gl::TRIANGLES, 36, gl::UNSIGNED_INT, 0 as *const _);
+
+            for (i, pos) in cube_position_array.iter().enumerate() {
+                let pos = Matrix4::from_translation(pos.clone().into());
+                let rot = Matrix4::from_axis_angle([1., 0.3, 0.5].into(), Deg(20. * i as f32));
+                let model = pos * rot;
+                vertex_textured_program.set_uniform("model", &model.as_ref() as &[f32; 16])?;
+                gl.DrawElements(gl::TRIANGLES, 36, gl::UNSIGNED_INT, 0 as *const _);
+            }
+
             cube.unbind();
         }
 
