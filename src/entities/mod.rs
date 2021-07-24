@@ -1,6 +1,7 @@
 mod vertex;
 
 use crate::entities::vertex::VertexAttribPointer;
+use gl::types::GLenum;
 
 fn new_array_buffer(gl: &gl::Gl) -> gl::types::GLuint {
     let mut vbo: gl::types::GLuint = 0;
@@ -28,7 +29,7 @@ impl Triangle {
             [0.5, -0.5, 0., 0., 0., 0., 1., 0.].into(),
         ];
 
-        let (vao, vbo) = unsafe { build_data(&gl, &vertices, gl::STATIC_DRAW) };
+        let (vao, vbo) = unsafe { load_render_data_raw(&gl, &vertices, gl::STATIC_DRAW) };
         Self { vao, vbo, gl }
     }
 
@@ -48,20 +49,50 @@ pub struct VertLine {
     vao: gl::types::GLuint,
 }
 
-unsafe fn build_data<T: vertex::VertexAttribPointer>(
-    gl: &gl::Gl,
-    data: &[T],
-    draw: gl::types::GLenum,
-) -> (u32, u32) {
-    let vbo = new_array_buffer(&gl);
-    let vao = new_vertex_array(&gl);
-    gl.BindVertexArray(vao);
-    gl.BindBuffer(gl::ARRAY_BUFFER, vbo);
+/// load_render_data_raw creates vertex buffer object and vertex array object.
+/// - vertex buffer object holds passed `data` for `draw`;
+/// - vertex array object is used to setup way the data is read for render. For example we can use
+/// (0 - 2) values for the first parameter of a shader, (3 - 5) for the second parameter;
+unsafe fn load_render_data_raw<T>(gl: &gl::Gl, data: &[T], draw: GLenum) -> (u32, u32)
+where
+    T: vertex::VertexAttribPointer,
+{
+    let vertex_buffer_object = new_array_buffer(&gl);
+    let vertex_array_object = new_vertex_array(&gl);
+    gl.BindVertexArray(vertex_array_object);
+    gl.BindBuffer(gl::ARRAY_BUFFER, vertex_buffer_object);
     buffer_data(gl, gl::ARRAY_BUFFER, data, draw);
     T::vertex_attrib_pointer(&gl);
     gl.BindBuffer(gl::ARRAY_BUFFER, 0);
     gl.BindVertexArray(0);
-    (vao, vbo)
+    (vertex_array_object, vertex_buffer_object)
+}
+
+unsafe fn load_render_data_indexed<T>(
+    gl: &gl::Gl,
+    data: &[T],
+    indices: &[u32],
+    draw: GLenum,
+) -> (u32, u32)
+where
+    T: vertex::VertexAttribPointer,
+{
+    let vertex_buffer_object = new_array_buffer(&gl);
+    let vertex_array_object = new_vertex_array(&gl);
+    // don't unload because it's stored within vertex_array_object.
+    let element_buffer_object = new_vertex_array(&gl);
+    gl.BindVertexArray(vertex_array_object);
+
+    gl.BindBuffer(gl::ARRAY_BUFFER, vertex_buffer_object);
+    buffer_data(&gl, gl::ARRAY_BUFFER, &data, draw);
+
+    gl.BindBuffer(gl::ELEMENT_ARRAY_BUFFER, element_buffer_object);
+    buffer_data(&gl, gl::ELEMENT_ARRAY_BUFFER, &indices, draw);
+
+    T::vertex_attrib_pointer(&gl);
+    gl.BindBuffer(gl::ARRAY_BUFFER, 0);
+    gl.BindVertexArray(0);
+    (vertex_array_object, vertex_buffer_object)
 }
 
 impl VertLine {
@@ -69,7 +100,7 @@ impl VertLine {
         let vertices: Vec<vertex::Bald> = vec![[-1.0, 1.0, 0.0].into(), [-1.0, -1.0, 0.0].into()];
 
         unsafe {
-            let (vao, vbo) = build_data(&gl, &vertices, gl::DYNAMIC_DRAW);
+            let (vao, vbo) = load_render_data_raw(&gl, &vertices, gl::DYNAMIC_DRAW);
             VertLine {
                 gl,
                 vao,
@@ -98,18 +129,9 @@ impl VertLine {
     }
 }
 
-unsafe fn buffer_data<T>(
-    gl: &gl::Gl,
-    target: gl::types::GLenum,
-    data: &[T],
-    draw: gl::types::GLenum,
-) {
-    gl.BufferData(
-        target,
-        (data.len() * std::mem::size_of::<T>()) as _,
-        data.as_ptr() as *const _,
-        draw,
-    );
+unsafe fn buffer_data<T>(gl: &gl::Gl, target: GLenum, data: &[T], draw: GLenum) {
+    let size = data.len() * std::mem::size_of::<T>();
+    gl.BufferData(target, size as _, data.as_ptr() as *const _, draw);
 }
 
 pub struct Parallelogram {
@@ -128,26 +150,51 @@ impl Parallelogram {
         ];
 
         let indices: Vec<u32> = vec![0, 1, 2, 0, 3, 2];
+        let (vao, vbo) = unsafe { load_render_data_indexed(&gl, &data, &indices, gl::STATIC_DRAW) };
+        Self { vao, vbo, gl }
+    }
 
-        let (vao, vbo) = //unsafe { build_data(&gl, &data, gl::STATIC_DRAW) };
-            unsafe {
-                let vbo = new_array_buffer(&gl);
-                let vao = new_vertex_array(&gl);
-                let ebo = new_vertex_array(&gl);
-                gl.BindVertexArray(vao);
+    pub fn bind(&self) {
+        unsafe { self.gl.BindVertexArray(self.vao) };
+    }
 
-                gl.BindBuffer(gl::ARRAY_BUFFER, vbo);
-                buffer_data(&gl, gl::ARRAY_BUFFER, &data, gl::STATIC_DRAW);
+    pub fn unbind(&self) {
+        unsafe { self.gl.BindVertexArray(0) };
+    }
+}
 
-                gl.BindBuffer(gl::ELEMENT_ARRAY_BUFFER, ebo);
-                buffer_data(&gl, gl::ELEMENT_ARRAY_BUFFER, &indices, gl::STATIC_DRAW);
+pub struct Cube {
+    gl: gl::Gl,
+    vbo: gl::types::GLuint,
+    vao: gl::types::GLuint,
+}
 
-                vertex::Textured::vertex_attrib_pointer(&gl);
-                gl.BindBuffer(gl::ARRAY_BUFFER, 0);
-                gl.BindVertexArray(0);
-                (vao, vbo)
-            };
+impl Cube {
+    #[rustfmt::skip]
+    pub fn new(gl: gl::Gl) -> Self {
+        let data: Vec<vertex::Textured> = vec![
+            // front
+            [-0.5, -0.5, 0.5, 0., 0., 0., 0.0, 0.0].into(),
+            [-0.5, 0.5, 0.5, 0., 0., 0., 0.0, 2.0].into(),
+            [0.5, 0.5, 0.5, 0., 0., 0., 2.0, 2.0].into(),
+            [0.5, -0.5, 0.5, 0., 0., 0., 2.0, 0.0].into(),
 
+            // back
+            [-0.5, -0.5, -0.5, 0., 0., 0., 2.0, 0.0].into(),
+            [-0.5, 0.5, -0.5, 0., 0., 0., 2.0, 2.0].into(),
+            [0.5, 0.5, -0.5, 0., 0., 0., 0.0, 2.0].into(),
+            [0.5, -0.5, -0.5, 0., 0., 0., 0.0, 0.0].into(),
+        ];
+
+        let indices: Vec<u32> = vec![
+            0, 1, 2, 0, 3, 2, // front
+            4, 5, 6, 4, 6, 7, // back
+            1, 5, 6, 1, 6, 2, // top
+            0, 4, 7, 0, 7, 3, // bottom
+            0, 1, 5, 0, 5, 4, // left
+            3, 2, 6, 3, 6, 7, // right
+        ];
+        let (vao, vbo) = unsafe { load_render_data_indexed(&gl, &data, &indices, gl::STATIC_DRAW) };
         Self { vao, vbo, gl }
     }
 

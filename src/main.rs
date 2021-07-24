@@ -39,7 +39,7 @@ fn main() -> anyhow::Result<()> {
     // load shader data ****************************************************************************
     let mut line = entities::VertLine::new(gl.clone());
     let triangle = entities::Triangle::new(gl.clone());
-    let parallelogram = entities::Parallelogram::new(gl.clone());
+    let cube = entities::Cube::new(gl.clone());
     unsafe {
         gl.Viewport(0, 0, WINDOW_WIDTH, WINDOW_HEIGHT);
         gl.ClearColor(0.3, 0.3, 0.5, 1.0);
@@ -54,11 +54,22 @@ fn main() -> anyhow::Result<()> {
         .context("fail getting textured shader program")?;
 
     vertex_textured_program.set_used();
-    let mut mat: Matrix4<f32> = cgmath::Matrix4::identity();
-    mat = mat * Matrix4::from_translation(Vector3::new(0.5, 0., 0.));
+    // let mut mat: Matrix4<f32> = cgmath::Matrix4::identity();
+    // mat = mat * Matrix4::from_translation(Vector3::new(0.5, 0., 0.));
+    let model: Matrix4<f32> = Matrix4::from_angle_y(Deg(0.));
+    let view: Matrix4<f32> = Matrix4::from_translation([0., 0., -3.].into());
+    let projection: Matrix4<f32> = Matrix4::from_translation([0., 0., -3.].into());
+    let aspect_ratio = WINDOW_WIDTH as f32 / WINDOW_HEIGHT as f32;
+    let projection: Matrix4<f32> = cgmath::perspective(Deg(45.), aspect_ratio, 0.1, 100.);
     vertex_textured_program
-        .set_uniform("transform", &mat.as_ref() as &[f32; 16])
-        .context("fail to set identity matrix to vertex_textured_program")?;
+        .set_uniform("model", &model.as_ref() as &[f32; 16])
+        .context("fail to set model matrix to vertex_textured_program")?;
+    vertex_textured_program
+        .set_uniform("view", &view.as_ref() as &[f32; 16])
+        .context("fail to set view matrix to vertex_textured_program")?;
+    vertex_textured_program
+        .set_uniform("projection", &projection.as_ref() as &[f32; 16])
+        .context("fail to set projection matrix to vertex_textured_program")?;
     // shader ends ********************************************************************************
 
     // texture begins
@@ -69,12 +80,16 @@ fn main() -> anyhow::Result<()> {
     // texture ends
 
     unsafe {
+        gl.Enable(gl::DEPTH_TEST);
         let err = gl.GetError();
         if err != gl::NO_ERROR {
             panic!("opengl error: {}", err);
         }
     }
 
+    let mut xaxis = 0.;
+    let mut yaxis = 0.;
+    let mut is_around_x = false;
     while !window.should_close() {
         glfw.poll_events();
         for (_, event) in glfw::flush_messages(&events) {
@@ -87,11 +102,22 @@ fn main() -> anyhow::Result<()> {
                 glfw::WindowEvent::Key(Key::Escape, _, Action::Press, _) => {
                     window.set_should_close(true)
                 }
+                glfw::WindowEvent::Key(Key::X, _, Action::Press, _) => {
+                    is_around_x = true;
+                }
+                glfw::WindowEvent::Key(Key::X, _, Action::Release, _) => {
+                    is_around_x = false;
+                }
                 glfw::WindowEvent::Scroll(_, yoffset) => {
-                    // println!("Scroll1");
+                    if is_around_x {
+                        xaxis += 5. * yoffset as f32;
+                    } else {
+                        yaxis += 5. * yoffset as f32;
+                    };
+                    let mat = Matrix4::from_angle_x(Deg(xaxis));
+                    let mat = mat * Matrix4::from_angle_y(Deg(yaxis));
                     vertex_textured_program.set_used();
-                    mat = mat * Matrix4::from_angle_z(Deg(5.0 * yoffset as f32));
-                    vertex_textured_program.set_uniform("transform", &mat.as_ref() as &[f32; 16]);
+                    vertex_textured_program.set_uniform("model", &mat.as_ref() as &[f32; 16]);
                 }
                 _ => {}
             }
@@ -99,14 +125,14 @@ fn main() -> anyhow::Result<()> {
 
         // drawing begins **************************************************************************
         unsafe {
-            gl.Clear(gl::COLOR_BUFFER_BIT);
+            gl.Clear(gl::COLOR_BUFFER_BIT | gl::DEPTH_BUFFER_BIT);
         }
 
         vertex_textured_program.set_used();
         unsafe {
-            parallelogram.bind();
-            gl.DrawElements(gl::TRIANGLES, 6, gl::UNSIGNED_INT, 0 as *const _);
-            parallelogram.unbind();
+            cube.bind();
+            gl.DrawElements(gl::TRIANGLES, 36, gl::UNSIGNED_INT, 0 as *const _);
+            cube.unbind();
         }
 
         // vertex_textured_program.set_used();
