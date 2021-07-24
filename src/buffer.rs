@@ -1,6 +1,6 @@
 use gl;
-use std::marker::PhantomData;
 use gl::types::GLenum;
+use std::marker::PhantomData;
 
 pub type Array<const DRAW: GLenum> = Buffer<BufferTypeArray, DRAW>;
 pub type ElementArray<const DRAW: GLenum> = Buffer<BufferTypeElementArray, DRAW>;
@@ -60,7 +60,7 @@ where
     pub fn subdata<T>(&self, data: &[T]) {
         unsafe {
             self.gl.BufferSubData(
-                B::BUFFER_TYPE,                                                   // target
+                B::BUFFER_TYPE, // target
                 0,
                 (data.len() * std::mem::size_of::<T>()) as gl::types::GLsizeiptr, // size of data in bytes
                 data.as_ptr() as *const gl::types::GLvoid,                        // pointer to data
@@ -74,7 +74,7 @@ where
                 B::BUFFER_TYPE,                                                   // target
                 (data.len() * std::mem::size_of::<T>()) as gl::types::GLsizeiptr, // size of data in bytes
                 data.as_ptr() as *const gl::types::GLvoid,                        // pointer to data
-                DRAW,                                                 // usage
+                DRAW,                                                             // usage
             );
         }
     }

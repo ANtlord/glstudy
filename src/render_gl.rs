@@ -5,6 +5,7 @@ use std::ffi::{CStr, CString};
 use std::fs::File;
 use std::io::Read;
 
+#[derive(Clone)]
 pub struct Program {
     gl: gl::Gl,
     id: gl::types::GLuint,
@@ -55,6 +56,17 @@ impl Program {
         }
 
         Ok(Program { gl, id: program_id })
+    }
+
+    pub fn set_uniform<T: AsRef<str>, V>(&mut self, key: T, value: &[V]) -> anyhow::Result<()> {
+        let key_c = CString::new(key.as_ref())
+            .with_context(|| format!("fail building C-string from {}", key.as_ref()))?;
+        unsafe {
+            let loc = self.gl.GetUniformLocation(self.id, key_c.as_ptr());
+            self.gl
+                .UniformMatrix4fv(loc, 1, gl::FALSE, value.as_ptr() as _);
+        }
+        Ok(())
     }
 
     // pub fn attrib_location(&self, name: &str) -> anyhow::Result<gl::types::GLint> {

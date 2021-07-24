@@ -1,23 +1,20 @@
-use anyhow::Context;
 use anyhow::anyhow;
+use anyhow::Context;
+use cgmath::{Matrix4, SquareMatrix, Deg, Vector3};
 use gl;
 use glfw;
 use glfw::{Action, Key};
 use image;
 
+mod buffer;
 mod entities;
 mod render_gl;
-mod buffer;
 mod texture;
 
 const WINDOW_WIDTH: i32 = 900;
 const WINDOW_HEIGHT: i32 = 700;
 
-fn build_shader_program(
-    gl: &gl::Gl,
-    vert: &str,
-    frag: &str,
-) -> anyhow::Result<render_gl::Program> {
+fn build_shader_program(gl: &gl::Gl, vert: &str, frag: &str) -> anyhow::Result<render_gl::Program> {
     let vert_shader =
         render_gl::Shader::from_vert_source(gl.clone(), render_gl::Source::Filepath(vert))
             .with_context(|| format!("fail building shader {}", vert))?;
@@ -41,6 +38,7 @@ fn main() -> anyhow::Result<()> {
         .expect("Failed to create GLFW window.");
 
     window.set_key_polling(true);
+    window.set_scroll_polling(true);
     let gl = gl::Gl::load_with(|s| window.get_proc_address(s) as *const _);
     glfw::Context::make_current(&mut window);
     window.set_cursor_pos_polling(true);
@@ -60,23 +58,35 @@ fn main() -> anyhow::Result<()> {
         &gl,
         "assets/shaders/vertex_chromatic.vert",
         "assets/shaders/vertex_chromatic.frag",
-    ).context("fail building vertex chromatic program")?;
+    )
+    .context("fail building vertex chromatic program")?;
 
     let point_program = build_shader_program(
         &gl,
         "assets/shaders/point.vert",
         "assets/shaders/point.frag",
-    ).context("fail building point program")?;
+    )
+    .context("fail building point program")?;
 
-    let vertex_textured_program = build_shader_program(
+    let mut vertex_textured_program = build_shader_program(
         &gl,
         "assets/shaders/vertex_textured.vert",
         "assets/shaders/vertex_textured.frag",
-    ).context("fail building vertex texture program")?;
+    )
+    .context("fail building vertex texture program")?;
+
+    vertex_textured_program.set_used();
+    let mut mat: Matrix4<f32> = cgmath::Matrix4::identity();
+    mat = mat * Matrix4::from_translation(Vector3::new(0.5, 0., 0.));
+    vertex_textured_program
+        .set_uniform("transform", &mat.as_ref() as &[f32; 16])
+        .context("fail to set identity matrix to vertex_textured_program")?;
     // shader ends ********************************************************************************
 
     // texture begins
-    let wallimg = image::open("assets/textures/wall.jpg").context("fail loading")?.into_rgb8();
+    let wallimg = image::open("assets/textures/wall.jpg")
+        .context("fail loading")?
+        .into_rgb8();
     let wall_texture = texture::Texture::new(gl.clone(), wallimg.as_raw(), wallimg.dimensions());
     // texture ends
 
@@ -99,7 +109,13 @@ fn main() -> anyhow::Result<()> {
                 glfw::WindowEvent::Key(Key::Escape, _, Action::Press, _) => {
                     window.set_should_close(true)
                 }
-                _ => {}
+                glfw::WindowEvent::Scroll(_, yoffset) => {
+                    // println!("Scroll1");
+                    vertex_textured_program.set_used();
+                    mat = mat * Matrix4::from_angle_z(Deg(5.0 * yoffset as f32));
+                    vertex_textured_program.set_uniform("transform", &mat.as_ref() as &[f32; 16]);
+                }
+                _ => { }
             }
         }
 

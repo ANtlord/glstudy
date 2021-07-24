@@ -10,6 +10,7 @@ edition = "2018"
 anyhow = "1.0"
 gl = { path = "lib/gl" }
 image = "*"
+cgmath = "*"
 # gl = "0.14.0"
 
 [dependencies.glfw]

@@ -7,7 +7,7 @@ pub struct Texture {
 }
 
 impl Texture {
-    pub fn new(gl: gl::Gl, data: &[u8], size: (u32, u32)) -> Self {
+    pub fn new(gl: gl::Gl, data: &[u8], (width, height): (u32, u32)) -> Self {
         let mut id = 0;
         const MIPMAP_LEVEL: i32 = 0;
         unsafe {
@@ -15,14 +15,18 @@ impl Texture {
             gl.BindTexture(gl::TEXTURE_2D, id);
             gl.TexParameteri(gl::TEXTURE_2D, gl::TEXTURE_WRAP_S, gl::REPEAT as _);
             gl.TexParameteri(gl::TEXTURE_2D, gl::TEXTURE_WRAP_T, gl::REPEAT as _);
-            gl.TexParameteri(gl::TEXTURE_2D, gl::TEXTURE_MIN_FILTER, gl::LINEAR as _);
+            gl.TexParameteri(
+                gl::TEXTURE_2D,
+                gl::TEXTURE_MIN_FILTER,
+                gl::LINEAR_MIPMAP_LINEAR as _,
+            );
             gl.TexParameteri(gl::TEXTURE_2D, gl::TEXTURE_MAG_FILTER, gl::LINEAR as _);
             gl.TexImage2D(
                 gl::TEXTURE_2D,
                 MIPMAP_LEVEL,
                 gl::RGB as _,
-                size.0 as _,
-                size.1 as _,
+                width as _,
+                height as _,
                 0,
                 gl::RGB,
                 gl::UNSIGNED_BYTE,
