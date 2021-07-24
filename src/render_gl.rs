@@ -5,10 +5,10 @@ use std::ffi::{CStr, CString};
 use std::fs::File;
 use std::io::Read;
 
-#[derive(Clone)]
 pub struct Program {
     gl: gl::Gl,
     id: gl::types::GLuint,
+    owned: bool
 }
 
 impl Program {
@@ -55,7 +55,7 @@ impl Program {
             }
         }
 
-        Ok(Program { gl, id: program_id })
+        Ok(Program { gl, id: program_id, owned: true })
     }
 
     pub fn set_uniform<T: AsRef<str>, V>(&mut self, key: T, value: &[V]) -> anyhow::Result<()> {
@@ -105,10 +105,26 @@ impl Program {
     }
 }
 
+impl Clone for Program {
+    fn clone(&self) -> Self {
+        Self {
+            gl: self.gl.clone(),
+            id: self.id,
+            owned: false,
+        }
+    }
+}
+
 impl Drop for Program {
     fn drop(&mut self) {
-        unsafe {
-            self.gl.DeleteProgram(self.id);
+        if self.owned {
+            unsafe {
+                self.gl.DeleteProgram(self.id);
+                let err = self.gl.GetError();
+                if err != gl::NO_ERROR {
+                    println!("attention");
+                }
+            }
         }
     }
 }

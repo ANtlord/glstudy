@@ -1,6 +1,6 @@
 use anyhow::anyhow;
 use anyhow::Context;
-use cgmath::{Matrix4, SquareMatrix, Deg, Vector3};
+use cgmath::{Deg, Matrix4, SquareMatrix, Vector3};
 use gl;
 use glfw;
 use glfw::{Action, Key};
@@ -10,20 +10,13 @@ mod buffer;
 mod entities;
 mod render_gl;
 mod texture;
+mod shader_program_container;
+
+use shader_program_container::ShaderProgramContainer;
+use shader_program_container::build_shader_program;
 
 const WINDOW_WIDTH: i32 = 900;
 const WINDOW_HEIGHT: i32 = 700;
-
-fn build_shader_program(gl: &gl::Gl, vert: &str, frag: &str) -> anyhow::Result<render_gl::Program> {
-    let vert_shader =
-        render_gl::Shader::from_vert_source(gl.clone(), render_gl::Source::Filepath(vert))
-            .with_context(|| format!("fail building shader {}", vert))?;
-    let frag_shader =
-        render_gl::Shader::from_frag_source(gl.clone(), render_gl::Source::Filepath(frag))
-            .with_context(|| format!("fail building shader {}", frag))?;
-    render_gl::Program::from_shaders(gl.clone(), &[vert_shader, frag_shader])
-        .map_err(|e| anyhow!("fail building program: {}", e))
-}
 
 fn main() -> anyhow::Result<()> {
     // initialize a window and a context ***********************************************************
@@ -53,27 +46,13 @@ fn main() -> anyhow::Result<()> {
         gl.ClearColor(0.3, 0.3, 0.5, 1.0);
     }
 
+    let mut shader_program_container = ShaderProgramContainer::new(gl.clone());
+
     // shader begins *******************************************************************************
-    let vertex_chromatic_program = build_shader_program(
-        &gl,
-        "assets/shaders/vertex_chromatic.vert",
-        "assets/shaders/vertex_chromatic.frag",
-    )
-    .context("fail building vertex chromatic program")?;
-
-    let point_program = build_shader_program(
-        &gl,
-        "assets/shaders/point.vert",
-        "assets/shaders/point.frag",
-    )
-    .context("fail building point program")?;
-
-    let mut vertex_textured_program = build_shader_program(
-        &gl,
-        "assets/shaders/vertex_textured.vert",
-        "assets/shaders/vertex_textured.frag",
-    )
-    .context("fail building vertex texture program")?;
+    let point_program = shader_program_container.get_point_program()
+        .context("fail getting point program")?;
+    let mut vertex_textured_program = shader_program_container.get_vertex_textured_program()
+        .context("fail getting textured shader program")?;
 
     vertex_textured_program.set_used();
     let mut mat: Matrix4<f32> = cgmath::Matrix4::identity();
@@ -115,7 +94,7 @@ fn main() -> anyhow::Result<()> {
                     mat = mat * Matrix4::from_angle_z(Deg(5.0 * yoffset as f32));
                     vertex_textured_program.set_uniform("transform", &mat.as_ref() as &[f32; 16]);
                 }
-                _ => { }
+                _ => {}
             }
         }
 
