@@ -2,7 +2,6 @@ use gl;
 
 use anyhow::anyhow;
 use anyhow::Context;
-use std::cell::RefCell;
 
 use crate::render_gl;
 
@@ -15,7 +14,7 @@ mod shader_paths {
     pub static POINT_FRAG: &str = "assets/shaders/point.frag";
 }
 
-pub fn build_shader_program(gl: &gl::Gl, vert: &str, frag: &str) -> anyhow::Result<render_gl::Program> {
+fn build_shader_program(gl: &gl::Gl, vert: &str, frag: &str) -> anyhow::Result<render_gl::Program> {
     let vert_shader =
         render_gl::Shader::from_vert_source(gl.clone(), render_gl::Source::Filepath(vert))
             .with_context(|| format!("fail building shader {}", vert))?;
@@ -27,9 +26,6 @@ pub fn build_shader_program(gl: &gl::Gl, vert: &str, frag: &str) -> anyhow::Resu
 }
 
 pub struct ShaderProgramContainer {
-    vertex_chromatic_program: Option<render_gl::Program>,
-    vertex_textured_program: Option<render_gl::Program>,
-    point_program: Option<render_gl::Program>,
     gl: gl::Gl,
 }
 
@@ -47,47 +43,36 @@ fn make(
 
 impl ShaderProgramContainer {
     pub fn new(gl: gl::Gl) -> Self {
-        Self {
-            gl,
-            vertex_textured_program: None,
-            vertex_chromatic_program: None,
-            point_program: None,
-        }
+        Self { gl }
     }
 
-    pub fn get_vertex_textured_program(&mut self) -> anyhow::Result<render_gl::Program> {
-        let program = make(
+    pub fn get_vertex_textured_program(&self) -> anyhow::Result<render_gl::Program> {
+        make(
             &self.gl,
-            self.vertex_textured_program.take(),
+            None,
             shader_paths::VERTEX_TEXTURED_VERT,
             shader_paths::VERTEX_TEXTURED_FRAG,
         )
-        .context("fail creating vertex textured program")?;
-        self.vertex_textured_program = Some(program.clone());
-        Ok(program)
+        .context("fail creating vertex textured program")
     }
 
-    pub fn get_vertex_chromatic_program(&mut self) -> anyhow::Result<render_gl::Program> {
-        let program = make(
+    pub fn get_vertex_chromatic_program(&self) -> anyhow::Result<render_gl::Program> {
+        make(
             &self.gl,
-            self.vertex_chromatic_program.take(),
+            None,
             shader_paths::VERTEX_CHROMATIC_VERT,
             shader_paths::VERTEX_CHROMATIC_FRAG,
         )
-        .context("fail creating vertex chromatic program")?;
-        self.vertex_chromatic_program = Some(program.clone());
-        Ok(program)
+        .context("fail creating vertex chromatic program")
     }
 
-    pub fn get_point_program(&mut self) -> anyhow::Result<render_gl::Program> {
-        let program = make(
+    pub fn get_point_program(&self) -> anyhow::Result<render_gl::Program> {
+        make(
             &self.gl,
-            self.vertex_chromatic_program.take(),
+            None,
             shader_paths::POINT_VERT,
             shader_paths::POINT_FRAG,
         )
-        .context("fail creating point program")?;
-        self.point_program = Some(program.clone());
-        Ok(program)
+        .context("fail creating point program")
     }
 }

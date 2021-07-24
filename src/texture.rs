@@ -13,8 +13,12 @@ impl Texture {
         unsafe {
             gl.GenTextures(1, &mut id);
             gl.BindTexture(gl::TEXTURE_2D, id);
+            // Here you are able to handle what to do if texture is short for a polygon. It can
+            // repeat or not, or repeat with mirroring etc. Like background: left top repeat;
             gl.TexParameteri(gl::TEXTURE_2D, gl::TEXTURE_WRAP_S, gl::REPEAT as _);
             gl.TexParameteri(gl::TEXTURE_2D, gl::TEXTURE_WRAP_T, gl::REPEAT as _);
+            // This is about using proper scale of the texture. It's called mipmaps which are
+            // generated a little bit later.
             gl.TexParameteri(
                 gl::TEXTURE_2D,
                 gl::TEXTURE_MIN_FILTER,

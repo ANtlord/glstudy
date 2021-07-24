@@ -8,33 +8,28 @@ use std::io::Read;
 pub struct Program {
     gl: gl::Gl,
     id: gl::types::GLuint,
-    owned: bool
+    owned: bool,
 }
 
 impl Program {
     pub fn from_shaders(gl: gl::Gl, shaders: &[Shader]) -> anyhow::Result<Program, String> {
         let program_id = unsafe { gl.CreateProgram() };
-
         for shader in shaders {
-            unsafe {
-                gl.AttachShader(program_id, shader.id());
-            }
-        }
-
-        unsafe {
-            gl.LinkProgram(program_id);
+            unsafe { gl.AttachShader(program_id, shader.id()) };
         }
 
         let mut success: gl::types::GLint = 1;
         unsafe {
+            gl.LinkProgram(program_id);
             gl.GetProgramiv(program_id, gl::LINK_STATUS, &mut success);
         }
 
         if success == 0 {
-            let mut len: gl::types::GLint = 0;
-            unsafe {
+            let len = unsafe {
+                let mut len: gl::types::GLint = 0;
                 gl.GetProgramiv(program_id, gl::INFO_LOG_LENGTH, &mut len);
-            }
+                len
+            };
 
             let error = create_whitespace_cstring_with_len(len as usize);
             unsafe {
@@ -42,7 +37,7 @@ impl Program {
                     program_id,
                     len,
                     std::ptr::null_mut(),
-                    error.as_ptr() as *mut gl::types::GLchar,
+                    error.as_ptr() as *mut _,
                 );
             }
 

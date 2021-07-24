@@ -13,7 +13,6 @@ mod texture;
 mod shader_program_container;
 
 use shader_program_container::ShaderProgramContainer;
-use shader_program_container::build_shader_program;
 
 const WINDOW_WIDTH: i32 = 900;
 const WINDOW_HEIGHT: i32 = 700;
