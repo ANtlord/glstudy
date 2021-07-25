@@ -8,7 +8,6 @@ use std::io::Read;
 pub struct Program {
     gl: gl::Gl,
     id: gl::types::GLuint,
-    owned: bool,
 }
 
 impl Program {
@@ -50,7 +49,7 @@ impl Program {
             }
         }
 
-        Ok(Program { gl, id: program_id, owned: true })
+        Ok(Program { gl, id: program_id })
     }
 
     pub fn set_uniform<T: AsRef<str>, V>(&mut self, key: T, value: &[V]) -> anyhow::Result<()> {
@@ -105,22 +104,13 @@ impl Clone for Program {
         Self {
             gl: self.gl.clone(),
             id: self.id,
-            owned: false,
         }
     }
 }
 
 impl Drop for Program {
     fn drop(&mut self) {
-        if self.owned {
-            unsafe {
-                self.gl.DeleteProgram(self.id);
-                let err = self.gl.GetError();
-                if err != gl::NO_ERROR {
-                    println!("attention");
-                }
-            }
-        }
+        unsafe { self.gl.DeleteProgram(self.id) };
     }
 }
 

@@ -9,8 +9,8 @@ use image;
 mod buffer;
 mod entities;
 mod render_gl;
-mod texture;
 mod shader_program_container;
+mod texture;
 
 use shader_program_container::ShaderProgramContainer;
 
@@ -47,9 +47,11 @@ fn main() -> anyhow::Result<()> {
     let shader_program_container = ShaderProgramContainer::new(gl.clone());
 
     // shader begins *******************************************************************************
-    let point_program = shader_program_container.get_point_program()
+    let point_program = shader_program_container
+        .get_point_program()
         .context("fail getting point program")?;
-    let mut vertex_textured_program = shader_program_container.get_vertex_textured_program()
+    let mut vertex_textured_program = shader_program_container
+        .get_vertex_textured_program()
         .context("fail getting textured shader program")?;
 
     vertex_textured_program.set_used();
@@ -86,21 +88,22 @@ fn main() -> anyhow::Result<()> {
     }
 
     let cube_position_array = [
-        [ 0.0, 0.0, 0.0],
-        [ 2.0, 5.0, -15.0],
+        [0.0, 0.0, 0.0],
+        [2.0, 5.0, -15.0],
         [-1.5, -2.2, -2.5],
         [-3.8, -2.0, -12.3],
-        [ 2.4, -0.4, -3.5],
+        [2.4, -0.4, -3.5],
         [-1.7, 3.0, -7.5],
-        [ 1.3, -2.0, -2.5],
-        [ 1.5, 2.0, -2.5],
-        [ 1.5, 0.2, -1.5],
+        [1.3, -2.0, -2.5],
+        [1.5, 2.0, -2.5],
+        [1.5, 0.2, -1.5],
         [-1.3, 1.0, -1.5],
     ];
 
     let mut xaxis = 0.;
     let mut yaxis = 0.;
     let mut is_around_x = false;
+    let mut angle = 45.0f32;
     while !window.should_close() {
         glfw.poll_events();
         for (_, event) in glfw::flush_messages(&events) {
@@ -125,10 +128,12 @@ fn main() -> anyhow::Result<()> {
                     // } else {
                     //     yaxis += 5. * yoffset as f32;
                     // };
-                    aspect_ratio += yoffset as f32 * 0.001f32;
-                    let projection = cgmath::perspective(Deg(45.0f32), aspect_ratio, 0.1, 100.);
+                    // aspect_ratio += yoffset as f32 * 0.01f32;
+                    angle += yoffset as f32 * 0.1f32;
+                    let projection = cgmath::perspective(Deg(angle), aspect_ratio, 0.1, 100.);
                     vertex_textured_program.set_used();
-                    vertex_textured_program.set_uniform("projection", &projection.as_ref() as &[f32; 16])?;
+                    vertex_textured_program
+                        .set_uniform("projection", &projection.as_ref() as &[f32; 16])?;
                 }
                 _ => {}
             }
@@ -146,7 +151,8 @@ fn main() -> anyhow::Result<()> {
                 let pos = Matrix4::from_translation(pos.clone().into());
                 let rot = Matrix4::from_axis_angle([1., 0.3, 0.5].into(), Deg(20. * i as f32));
                 let model = pos * rot;
-                vertex_textured_program.set_uniform("model", &model.as_ref() as &[f32; 16])
+                vertex_textured_program
+                    .set_uniform("model", &model.as_ref() as &[f32; 16])
                     .with_context(|| format!("fail changine `model` uniform of cube {}", i))?;
                 gl.DrawElements(gl::TRIANGLES, 36, gl::UNSIGNED_INT, 0 as *const _);
             }
