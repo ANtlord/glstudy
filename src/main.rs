@@ -1,10 +1,12 @@
 use anyhow::anyhow;
 use anyhow::Context;
-use cgmath::{Deg, Matrix4, SquareMatrix, Vector3};
+use cgmath::{prelude::InnerSpace, Deg, Matrix4, Point3, SquareMatrix, Vector3, Angle};
 use gl;
 use glfw;
 use glfw::{Action, Key};
 use image;
+
+use std::time::SystemTime;
 
 mod buffer;
 mod entities;
@@ -16,6 +18,28 @@ use shader_program_container::ShaderProgramContainer;
 
 const WINDOW_WIDTH: i32 = 900;
 const WINDOW_HEIGHT: i32 = 700;
+const WINDOW_ASPECT_RATIO: f32 = WINDOW_WIDTH as f32 / WINDOW_HEIGHT as f32;
+const ZOOM_MIN: f32 = 25.0;
+const ZOOM_MAX: f32 = 45.0;
+
+type Camera = (Point3<f32>, Vector3<f32>, Vector3<f32>);
+
+fn setup_coordinate_system(program: &mut render_gl::Program, camera: Camera) -> anyhow::Result<()> {
+    program.set_used();
+    let model = Matrix4::from_angle_y(Deg(0.0f32));
+    let view = Matrix4::look_at_rh(camera.0, camera.0 + camera.1, camera.2);
+    let projection = cgmath::perspective(Deg(45.0f32), WINDOW_ASPECT_RATIO, 0.1, 100.);
+    program
+        .set_uniform("model", &model.as_ref() as &[f32; 16])
+        .context("fail to set model matrix to vertex_textured_program")?;
+    program
+        .set_uniform("view", &view.as_ref() as &[f32; 16])
+        .context("fail to set view matrix to vertex_textured_program")?;
+    program
+        .set_uniform("projection", &projection.as_ref() as &[f32; 16])
+        .context("fail to set projection matrix to vertex_textured_program")?;
+    Ok(())
+}
 
 fn main() -> anyhow::Result<()> {
     // initialize a window and a context ***********************************************************
@@ -37,7 +61,7 @@ fn main() -> anyhow::Result<()> {
     // initialization ends *************************************************************************
 
     // load shader data ****************************************************************************
-    let mut line = entities::VertLine::new(gl.clone());
+    // let mut line = entities::VertLine::new(gl.clone());
     let cube = entities::Cube::new(gl.clone());
     unsafe {
         gl.Viewport(0, 0, WINDOW_WIDTH, WINDOW_HEIGHT);
@@ -45,31 +69,22 @@ fn main() -> anyhow::Result<()> {
     }
 
     let shader_program_container = ShaderProgramContainer::new(gl.clone());
-
     // shader begins *******************************************************************************
-    let point_program = shader_program_container
-        .get_point_program()
-        .context("fail getting point program")?;
+    // let point_program = shader_program_container
+    //     .get_point_program()
+    //     .context("fail getting point program")?;
     let mut vertex_textured_program = shader_program_container
         .get_vertex_textured_program()
         .context("fail getting textured shader program")?;
 
-    vertex_textured_program.set_used();
-    // let mut mat: Matrix4<f32> = cgmath::Matrix4::identity();
-    // mat = mat * Matrix4::from_translation(Vector3::new(0.5, 0., 0.));
-    let model: Matrix4<f32> = Matrix4::from_angle_y(Deg(0.));
-    let view: Matrix4<f32> = Matrix4::from_translation([0., 0., -3.].into());
-    let mut aspect_ratio = WINDOW_WIDTH as f32 / WINDOW_HEIGHT as f32;
-    let projection = cgmath::perspective(Deg(45.0f32), aspect_ratio, 0.1, 100.);
-    vertex_textured_program
-        .set_uniform("model", &model.as_ref() as &[f32; 16])
-        .context("fail to set model matrix to vertex_textured_program")?;
-    vertex_textured_program
-        .set_uniform("view", &view.as_ref() as &[f32; 16])
-        .context("fail to set view matrix to vertex_textured_program")?;
-    vertex_textured_program
-        .set_uniform("projection", &projection.as_ref() as &[f32; 16])
-        .context("fail to set projection matrix to vertex_textured_program")?;
+    let mut camera = (
+        Point3::from([0.0f32, 0., 3.]),   // position
+        Vector3::from([0.0f32, 0., -1.]), // front
+        Vector3::from([0.0f32, 1., 0.]),  // up vector
+    );
+
+    setup_coordinate_system(&mut vertex_textured_program, camera)
+        .context("fail setup coordinate system")?;
     // shader ends ********************************************************************************
 
     // texture begins
@@ -78,14 +93,6 @@ fn main() -> anyhow::Result<()> {
         .into_rgb8();
     let wall_texture = texture::Texture::new(gl.clone(), wallimg.as_raw(), wallimg.dimensions());
     // texture ends
-
-    unsafe {
-        gl.Enable(gl::DEPTH_TEST);
-        let err = gl.GetError();
-        if err != gl::NO_ERROR {
-            panic!("opengl error: {}", err);
-        }
-    }
 
     let cube_position_array = [
         [0.0, 0.0, 0.0],
@@ -100,40 +107,79 @@ fn main() -> anyhow::Result<()> {
         [-1.3, 1.0, -1.5],
     ];
 
-    let mut xaxis = 0.;
-    let mut yaxis = 0.;
-    let mut is_around_x = false;
-    let mut angle = 45.0f32;
+    unsafe {
+        gl.Enable(gl::DEPTH_TEST);
+        let err = gl.GetError();
+        if err != gl::NO_ERROR {
+            panic!("opengl error: {}", err);
+        }
+    }
+
+    if glfw.supports_raw_motion() {
+        window.set_cursor_mode(glfw::CursorMode::Disabled);
+        window.set_raw_mouse_motion(true);
+    } else {
+        println!("mouse raw motion is not supported");
+    }
+
+    let mut camera_angle = (0., -90.);
+    let mut first_mouse_move = true;
+    let mut last_frame_time = SystemTime::now();
+    let mut last_cursor_pos = ((WINDOW_WIDTH / 2) as f64, (WINDOW_HEIGHT / 2) as f64);
+    let mut zoom = ZOOM_MAX;
+    const CAMERA_SENSETIVITY: f64 = 0.1;
     while !window.should_close() {
+        // count last frame duration.
+        let current_frame_time = SystemTime::now();
+        let frame_time = current_frame_time.duration_since(last_frame_time)
+            .context("fail getting duration between frames")?;
+        let frame_time_secs = frame_time.as_secs_f32();
+        last_frame_time = current_frame_time;
+        let camera_speed = 2.5f32 * frame_time_secs;
+
         glfw.poll_events();
         for (_, event) in glfw::flush_messages(&events) {
             match event {
                 // catch mouse events **************************************************************
-                glfw::WindowEvent::CursorPos(xpos, _ypos) => {
-                    line.x = (xpos as f32 / WINDOW_WIDTH as f32) * 2. - 1.;
-                    line.update();
+                glfw::WindowEvent::CursorPos(xpos, ypos) => {
+                    if first_mouse_move {
+                        last_cursor_pos.0 = xpos;
+                        last_cursor_pos.1 = ypos;
+                        first_mouse_move = false;
+                    }
+                    // line.x = (xpos as f32 / WINDOW_WIDTH as f32) * 2. - 1.;
+                    // line.update();
+                    let xoffset = xpos - last_cursor_pos.0;
+                    let yoffset = ypos - last_cursor_pos.1;
+                    camera_angle.0 += yoffset * CAMERA_SENSETIVITY;
+                    camera_angle.0 = camera_angle.0.min(89.).max(-89.);
+                    camera_angle.1 += xoffset * CAMERA_SENSETIVITY;
+
+                    last_cursor_pos.0 = xpos;
+                    last_cursor_pos.1 = ypos;
+                    let (pitch, yaw) = camera_angle;
+                    camera.1.x = (Deg(yaw).cos() * Deg(pitch).cos()) as f32 ;
+                    camera.1.y = Deg(pitch).sin() as f32;
+                    camera.1.z = (Deg(yaw).sin() * Deg(pitch).cos()) as f32;
+                    camera.1 = camera.1.normalize();
+                }
+                glfw::WindowEvent::Key(Key::W, _, Action::Repeat, _) => {
+                    camera.0 += camera.1 * camera_speed;
+                }
+                glfw::WindowEvent::Key(Key::A, _, Action::Repeat, _) => {
+                    camera.0 += camera.2.cross(camera.1).normalize() * camera_speed;
+                }
+                glfw::WindowEvent::Key(Key::S, _, Action::Repeat, _) => {
+                    camera.0 -= camera.1 * camera_speed;
+                }
+                glfw::WindowEvent::Key(Key::D, _, Action::Repeat, _) => {
+                    camera.0 -= camera.2.cross(camera.1).normalize() * camera_speed;
                 }
                 glfw::WindowEvent::Key(Key::Escape, _, Action::Press, _) => {
                     window.set_should_close(true)
                 }
-                glfw::WindowEvent::Key(Key::X, _, Action::Press, _) => {
-                    is_around_x = true;
-                }
-                glfw::WindowEvent::Key(Key::X, _, Action::Release, _) => {
-                    is_around_x = false;
-                }
                 glfw::WindowEvent::Scroll(_, yoffset) => {
-                    // if is_around_x {
-                    //     xaxis += 5. * yoffset as f32;
-                    // } else {
-                    //     yaxis += 5. * yoffset as f32;
-                    // };
-                    // aspect_ratio += yoffset as f32 * 0.01f32;
-                    angle += yoffset as f32 * 0.1f32;
-                    let projection = cgmath::perspective(Deg(angle), aspect_ratio, 0.1, 100.);
-                    vertex_textured_program.set_used();
-                    vertex_textured_program
-                        .set_uniform("projection", &projection.as_ref() as &[f32; 16])?;
+                    zoom = (zoom + yoffset as f32).max(ZOOM_MIN).min(ZOOM_MAX);
                 }
                 _ => {}
             }
@@ -145,6 +191,16 @@ fn main() -> anyhow::Result<()> {
         }
 
         vertex_textured_program.set_used();
+        let view = Matrix4::look_at_rh(camera.0, camera.0 + camera.1, camera.2);
+        vertex_textured_program
+            .set_uniform("view", &view.as_ref() as &[f32; 16])
+            .context("fail to set view matrix to vertex_textured_program")?;
+
+        let projection = cgmath::perspective(Deg(zoom), WINDOW_ASPECT_RATIO, 0.1, 100.);
+        vertex_textured_program
+            .set_uniform("projection", &projection.as_ref() as &[f32; 16])
+            .context("fail to set projection matrix to vertex_textured_program")?;
+
         unsafe {
             cube.bind();
             for (i, pos) in cube_position_array.iter().enumerate() {
@@ -167,12 +223,12 @@ fn main() -> anyhow::Result<()> {
         //     triangle.unbind();
         // }
 
-        point_program.set_used();
-        unsafe {
-            line.bind();
-            gl.DrawArrays(gl::LINES, 0, 2);
-            line.unbind();
-        }
+        // point_program.set_used();
+        // unsafe {
+        //     line.bind();
+        //     gl.DrawArrays(gl::LINES, 0, 2);
+        //     line.unbind();
+        // }
 
         unsafe {
             let err = gl.GetError();
