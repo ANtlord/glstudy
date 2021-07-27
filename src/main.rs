@@ -13,6 +13,7 @@ mod entities;
 mod render_gl;
 mod shader_program_container;
 mod texture;
+mod camera;
 
 use shader_program_container::ShaderProgramContainer;
 
