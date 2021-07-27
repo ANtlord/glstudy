@@ -1,6 +1,6 @@
 use anyhow::anyhow;
 use anyhow::Context;
-use cgmath::{prelude::InnerSpace, Deg, Matrix4, Point3, SquareMatrix, Vector3, Angle};
+use cgmath::{prelude::InnerSpace, Angle, Deg, Matrix4, Point3, SquareMatrix, Vector3};
 use gl;
 use glfw;
 use glfw::{Action, Key};
@@ -9,35 +9,47 @@ use image;
 use std::time::SystemTime;
 
 mod buffer;
+mod camera;
 mod entities;
 mod render_gl;
 mod shader_program_container;
 mod texture;
-mod camera;
 
 use shader_program_container::ShaderProgramContainer;
 
 const WINDOW_WIDTH: i32 = 900;
 const WINDOW_HEIGHT: i32 = 700;
 const WINDOW_ASPECT_RATIO: f32 = WINDOW_WIDTH as f32 / WINDOW_HEIGHT as f32;
-const ZOOM_MIN: f32 = 25.0;
-const ZOOM_MAX: f32 = 45.0;
 
-type Camera = (Point3<f32>, Vector3<f32>, Vector3<f32>);
+// type Camera = (Point3<f32>, Vector3<f32>, Vector3<f32>);
 
-fn setup_coordinate_system(program: &mut render_gl::Program, camera: Camera) -> anyhow::Result<()> {
+fn standard_camera() -> camera::Camera {
+    camera::CameraOptions::new()
+        .position([0.0f32, 0., 3.])
+        .front([0.0f32, 0., -1.])
+        .up([0.0f32, 1., 0.])
+        .yaw(-90.)
+        .aspect_ratio(WINDOW_ASPECT_RATIO)
+        .zoom(45.)
+        .build()
+}
+
+fn setup_coordinate_system(
+    program: &mut render_gl::Program,
+    camera: &camera::Camera,
+) -> anyhow::Result<()> {
     program.set_used();
     let model = Matrix4::from_angle_y(Deg(0.0f32));
-    let view = Matrix4::look_at_rh(camera.0, camera.0 + camera.1, camera.2);
-    let projection = cgmath::perspective(Deg(45.0f32), WINDOW_ASPECT_RATIO, 0.1, 100.);
+    // let view = Matrix4::look_at_rh(camera.0, camera.0 + camera.1, camera.2);
+    // let projection = cgmath::perspective(Deg(45.0f32), WINDOW_ASPECT_RATIO, 0.1, 100.);
     program
         .set_uniform("model", &model.as_ref() as &[f32; 16])
         .context("fail to set model matrix to vertex_textured_program")?;
     program
-        .set_uniform("view", &view.as_ref() as &[f32; 16])
+        .set_uniform("view", &camera.view().as_ref() as &[f32; 16])
         .context("fail to set view matrix to vertex_textured_program")?;
     program
-        .set_uniform("projection", &projection.as_ref() as &[f32; 16])
+        .set_uniform("projection", &camera.projection().as_ref() as &[f32; 16])
         .context("fail to set projection matrix to vertex_textured_program")?;
     Ok(())
 }
@@ -78,13 +90,9 @@ fn main() -> anyhow::Result<()> {
         .get_vertex_textured_program()
         .context("fail getting textured shader program")?;
 
-    let mut camera = (
-        Point3::from([0.0f32, 0., 3.]),   // position
-        Vector3::from([0.0f32, 0., -1.]), // front
-        Vector3::from([0.0f32, 1., 0.]),  // up vector
-    );
+    let mut camera = standard_camera();
 
-    setup_coordinate_system(&mut vertex_textured_program, camera)
+    setup_coordinate_system(&mut vertex_textured_program, &camera)
         .context("fail setup coordinate system")?;
     // shader ends ********************************************************************************
 
@@ -123,16 +131,15 @@ fn main() -> anyhow::Result<()> {
         println!("mouse raw motion is not supported");
     }
 
-    let mut camera_angle = (0., -90.);
     let mut first_mouse_move = true;
     let mut last_frame_time = SystemTime::now();
-    let mut last_cursor_pos = ((WINDOW_WIDTH / 2) as f64, (WINDOW_HEIGHT / 2) as f64);
-    let mut zoom = ZOOM_MAX;
-    const CAMERA_SENSETIVITY: f64 = 0.1;
+    let mut last_cursor_pos = (0., 0.);
+    const CAMERA_SENSETIVITY: f32 = 0.1;
     while !window.should_close() {
         // count last frame duration.
         let current_frame_time = SystemTime::now();
-        let frame_time = current_frame_time.duration_since(last_frame_time)
+        let frame_time = current_frame_time
+            .duration_since(last_frame_time)
             .context("fail getting duration between frames")?;
         let frame_time_secs = frame_time.as_secs_f32();
         last_frame_time = current_frame_time;
@@ -148,39 +155,34 @@ fn main() -> anyhow::Result<()> {
                         last_cursor_pos.1 = ypos;
                         first_mouse_move = false;
                     }
-                    // line.x = (xpos as f32 / WINDOW_WIDTH as f32) * 2. - 1.;
-                    // line.update();
+
                     let xoffset = xpos - last_cursor_pos.0;
                     let yoffset = ypos - last_cursor_pos.1;
-                    camera_angle.0 += yoffset * CAMERA_SENSETIVITY;
-                    camera_angle.0 = camera_angle.0.min(89.).max(-89.);
-                    camera_angle.1 += xoffset * CAMERA_SENSETIVITY;
+                    camera.rotate(
+                        yoffset as f32 * CAMERA_SENSETIVITY,
+                        xoffset as f32 * CAMERA_SENSETIVITY,
+                    );
 
                     last_cursor_pos.0 = xpos;
                     last_cursor_pos.1 = ypos;
-                    let (pitch, yaw) = camera_angle;
-                    camera.1.x = (Deg(yaw).cos() * Deg(pitch).cos()) as f32 ;
-                    camera.1.y = Deg(pitch).sin() as f32;
-                    camera.1.z = (Deg(yaw).sin() * Deg(pitch).cos()) as f32;
-                    camera.1 = camera.1.normalize();
                 }
                 glfw::WindowEvent::Key(Key::W, _, Action::Repeat, _) => {
-                    camera.0 += camera.1 * camera_speed;
+                    camera.go(camera::Way::Forward(camera_speed));
                 }
                 glfw::WindowEvent::Key(Key::A, _, Action::Repeat, _) => {
-                    camera.0 += camera.2.cross(camera.1).normalize() * camera_speed;
+                    camera.go(camera::Way::Left(camera_speed));
                 }
                 glfw::WindowEvent::Key(Key::S, _, Action::Repeat, _) => {
-                    camera.0 -= camera.1 * camera_speed;
+                    camera.go(camera::Way::Backward(camera_speed));
                 }
                 glfw::WindowEvent::Key(Key::D, _, Action::Repeat, _) => {
-                    camera.0 -= camera.2.cross(camera.1).normalize() * camera_speed;
+                    camera.go(camera::Way::Right(camera_speed));
                 }
                 glfw::WindowEvent::Key(Key::Escape, _, Action::Press, _) => {
                     window.set_should_close(true)
                 }
                 glfw::WindowEvent::Scroll(_, yoffset) => {
-                    zoom = (zoom + yoffset as f32).max(ZOOM_MIN).min(ZOOM_MAX);
+                    camera.shift_zoom(yoffset as _);
                 }
                 _ => {}
             }
@@ -192,14 +194,12 @@ fn main() -> anyhow::Result<()> {
         }
 
         vertex_textured_program.set_used();
-        let view = Matrix4::look_at_rh(camera.0, camera.0 + camera.1, camera.2);
         vertex_textured_program
-            .set_uniform("view", &view.as_ref() as &[f32; 16])
+            .set_uniform("view", &camera.view().as_ref() as &[f32; 16])
             .context("fail to set view matrix to vertex_textured_program")?;
 
-        let projection = cgmath::perspective(Deg(zoom), WINDOW_ASPECT_RATIO, 0.1, 100.);
         vertex_textured_program
-            .set_uniform("projection", &projection.as_ref() as &[f32; 16])
+            .set_uniform("projection", &camera.projection().as_ref() as &[f32; 16])
             .context("fail to set projection matrix to vertex_textured_program")?;
 
         unsafe {

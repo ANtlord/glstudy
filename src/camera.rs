@@ -1,12 +1,13 @@
-use anyhow;
-use cgmath::{Point3, Vector3, Matrix4, Deg, prelude::InnerSpace, Angle};
-const ZOOM_MIN: f32 = 25.0;
-const ZOOM_MAX: f32 = 45.0;
+use cgmath::{prelude::InnerSpace, Angle, Deg, Matrix4, Point3, Vector3};
+
+const ZOOM_MIN: f32 = 25.;
+const ZOOM_MAX: f32 = 45.;
 const PITCH_MIN: f32 = -89.;
 const PITCH_MAX: f32 = 89.;
 
 // type Camera = (Point3<f32>, Vector3<f32>, Vector3<f32>);
 
+#[derive(Clone)]
 pub struct Camera {
     position: Point3<f32>,
     front: Vector3<f32>,
@@ -25,19 +26,19 @@ pub enum Way {
 }
 
 impl Camera {
-    fn view(&self) -> cgmath::Matrix4<f32> {
+    pub fn view(&self) -> cgmath::Matrix4<f32> {
         Matrix4::look_at_rh(self.position, self.position + self.front, self.up)
     }
 
-    fn projection(&self) -> cgmath::Matrix4<f32> {
+    pub fn projection(&self) -> cgmath::Matrix4<f32> {
         cgmath::perspective(Deg(self.zoom), self.aspect_ratio, 0.1, 100.)
     }
 
-    fn shift_zoom(&mut self, value: f32) {
+    pub fn shift_zoom(&mut self, value: f32) {
         self.zoom = (self.zoom + value).max(ZOOM_MIN).min(ZOOM_MAX);
     }
 
-    fn go(&mut self, value: Way) {
+    pub fn go(&mut self, value: Way) {
         match value {
             Way::Forward(speed) => self.position += self.front * speed,
             Way::Backward(speed) => self.position -= self.front * speed,
@@ -46,9 +47,9 @@ impl Camera {
         }
     }
 
-    fn set_rotaion(&mut self, pitch: f32, yaw: f32) {
-        self.pitch = pitch.min(PITCH_MAX).max(PITCH_MIN);
-        self.yaw = yaw;
+    pub fn rotate(&mut self, pitch: f32, yaw: f32) {
+        self.pitch = (self.pitch + pitch).min(PITCH_MAX).max(PITCH_MIN);
+        self.yaw += yaw;
         self.front.x = Deg(self.yaw).cos() * Deg(self.pitch).cos();
         self.front.y = Deg(self.pitch).sin();
         self.front.z = Deg(self.yaw).sin() * Deg(self.pitch).cos();
@@ -56,15 +57,15 @@ impl Camera {
     }
 
     fn right_vector(&self) -> Vector3<f32> {
-        self.up.cross(self.front).normalize()
+        self.front.cross(self.up).normalize()
     }
 }
 
-pub struct CameraBuild {
-    output: Camera
+pub struct CameraOptions {
+    output: Camera,
 }
 
-impl CameraBuild {
+impl CameraOptions {
     pub fn new() -> Self {
         Self {
             output: Camera {
@@ -75,7 +76,7 @@ impl CameraBuild {
                 aspect_ratio: 0.,
                 yaw: 0.,
                 pitch: 0.,
-            }
+            },
         }
     }
 
@@ -89,7 +90,7 @@ impl CameraBuild {
         self
     }
 
-    pub fn up(&mut self, value: Vector3<f32>) -> &mut Self {
+    pub fn up(&mut self, value: impl Into<Vector3<f32>>) -> &mut Self {
         self.output.up = value.into();
         self
     }
@@ -104,7 +105,17 @@ impl CameraBuild {
         self
     }
 
-    pub fn build(self) -> anyhow::Result<Camera> {
-        Ok(self.output)
+    pub fn pitch(&mut self, value: f32) -> &mut Self {
+        self.output.pitch = value;
+        self
+    }
+
+    pub fn yaw(&mut self, value: f32) -> &mut Self {
+        self.output.yaw = value;
+        self
+    }
+
+    pub fn build(&self) -> Camera {
+        self.output.clone()
     }
 }
