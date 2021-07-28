@@ -1,3 +1,14 @@
+/// There are should be 16 textures at a time. The number depends on version of OpenGL. The flow of
+/// loading a texture is:
+/// 1. glGenTextures(1, texture_id);
+/// 2. glActiveTexture(GL_TEXTURE0); // GL_TEXTURE0 .. GL_TEXTURE15
+/// 3. glBindTexture(GL_TEXTURE_2D, texture_id);
+/// 4. Customizations of the texture (set parameters of wraping, uploading data (image), mipmaps)
+/// 5. glUniform1i(glGetUniformLocation(shader_id, "textue_field_name"), 0);
+///
+/// Note: the shader which is designed for the texture must have field `uniform Sampler2D
+/// textue_field_name;`
+
 use gl;
 use std::ffi::c_void;
 
