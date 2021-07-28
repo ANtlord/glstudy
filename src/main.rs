@@ -1,4 +1,4 @@
-use anyhow::anyhow;
+
 use anyhow::Context;
 use cgmath::{prelude::InnerSpace, Angle, Deg, Matrix4, Point3, SquareMatrix, Vector3};
 use gl;
@@ -21,14 +21,12 @@ const WINDOW_WIDTH: i32 = 900;
 const WINDOW_HEIGHT: i32 = 700;
 const WINDOW_ASPECT_RATIO: f32 = WINDOW_WIDTH as f32 / WINDOW_HEIGHT as f32;
 
-// type Camera = (Point3<f32>, Vector3<f32>, Vector3<f32>);
-
 fn standard_camera() -> camera::Camera {
     camera::CameraOptions::new()
-        .position([0.0f32, 0., 3.])
+        .position([0.0f32, 0., 3.]) // just a little bit from the center of the world
         .front([0.0f32, 0., -1.])
         .up([0.0f32, 1., 0.])
-        .yaw(-90.)
+        .yaw(-90.) // as we looking againg Z direction
         .aspect_ratio(WINDOW_ASPECT_RATIO)
         .zoom(45.)
         .build()
@@ -40,8 +38,6 @@ fn setup_coordinate_system(
 ) -> anyhow::Result<()> {
     program.set_used();
     let model = Matrix4::from_angle_y(Deg(0.0f32));
-    // let view = Matrix4::look_at_rh(camera.0, camera.0 + camera.1, camera.2);
-    // let projection = cgmath::perspective(Deg(45.0f32), WINDOW_ASPECT_RATIO, 0.1, 100.);
     program
         .set_uniform("model", &model.as_ref() as &[f32; 16])
         .context("fail to set model matrix to vertex_textured_program")?;
@@ -91,7 +87,6 @@ fn main() -> anyhow::Result<()> {
         .context("fail getting textured shader program")?;
 
     let mut camera = standard_camera();
-
     setup_coordinate_system(&mut vertex_textured_program, &camera)
         .context("fail setup coordinate system")?;
     // shader ends ********************************************************************************
@@ -100,7 +95,7 @@ fn main() -> anyhow::Result<()> {
     let wallimg = image::open("assets/textures/wall.jpg")
         .context("fail loading")?
         .into_rgb8();
-    let wall_texture = texture::Texture::new(gl.clone(), wallimg.as_raw(), wallimg.dimensions());
+    let _wall_texture = texture::Texture::new(gl.clone(), wallimg.as_raw(), wallimg.dimensions());
     // texture ends
 
     let cube_position_array = [
