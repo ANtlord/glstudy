@@ -1,6 +1,5 @@
-
 use anyhow::Context;
-use cgmath::{prelude::InnerSpace, Angle, Deg, Matrix4, Point3, SquareMatrix, Vector3};
+use cgmath::{Deg, Matrix4};
 use gl;
 use glfw;
 use glfw::{Action, Key};
@@ -71,8 +70,7 @@ fn main() -> anyhow::Result<()> {
     // initialization ends *************************************************************************
 
     // load shader data ****************************************************************************
-    // let mut line = entities::VertLine::new(gl.clone());
-    let cube = entities::Cube::new(gl.clone());
+    let cube = entities::Shape::cube(gl.clone());
     unsafe {
         gl.Viewport(0, 0, WINDOW_WIDTH, WINDOW_HEIGHT);
         gl.ClearColor(0.3, 0.3, 0.5, 1.0);
@@ -80,9 +78,6 @@ fn main() -> anyhow::Result<()> {
 
     let shader_program_container = ShaderProgramContainer::new(gl.clone());
     // shader begins *******************************************************************************
-    // let point_program = shader_program_container
-    //     .get_point_program()
-    //     .context("fail getting point program")?;
     let mut vertex_textured_program = shader_program_container
         .get_vertex_textured_program()
         .context("fail getting textured shader program")?;

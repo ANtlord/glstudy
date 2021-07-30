@@ -5,6 +5,7 @@ use anyhow::Context;
 
 use crate::render_gl;
 
+#[allow(unused)]
 mod shader_paths {
     pub static VERTEX_TEXTURED_VERT: &str = "assets/shaders/vertex_textured.vert";
     pub static VERTEX_TEXTURED_FRAG: &str = "assets/shaders/vertex_textured.frag";
@@ -41,6 +42,7 @@ fn make(
     }
 }
 
+#[allow(unused)]
 impl ShaderProgramContainer {
     pub fn new(gl: gl::Gl) -> Self {
         Self { gl }

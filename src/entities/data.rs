@@ -5,13 +5,11 @@
 ///
 /// Vertex Buffer Object (VBO) is purposed to store some data for a shader.
 ///
-/// Vertex Array Object (VAO) defines the way how to pass the data from VBO to a shader. 
+/// Vertex Array Object (VAO) defines the way how to pass the data from VBO to a shader.
 ///
 /// Element Buffer Object (EBO) is an array of indexes to pieces of the data from VBO.
-
 use crate::entities::vertex;
 use gl::types::GLenum;
-
 
 fn new_array_buffer(gl: &gl::Gl) -> gl::types::GLuint {
     let mut vbo: gl::types::GLuint = 0;

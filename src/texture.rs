@@ -12,11 +12,13 @@
 use gl;
 use std::ffi::c_void;
 
+#[allow(unused)]
 pub struct Texture {
     gl: gl::Gl,
     id: u32,
 }
 
+#[allow(unused)]
 impl Texture {
     pub fn new(gl: gl::Gl, data: &[u8], (width, height): (u32, u32)) -> Self {
         let mut id = 0;

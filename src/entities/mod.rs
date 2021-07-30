@@ -1,34 +1,7 @@
-mod vertex;
 mod data;
+mod vertex;
 
-use data::{load_render_data_raw, load_render_data_indexed, buffer_data};
-
-pub struct Triangle {
-    gl: gl::Gl,
-    vbo: gl::types::GLuint,
-    vao: gl::types::GLuint,
-}
-
-impl Triangle {
-    pub fn new(gl: gl::Gl) -> Self {
-        let vertices: Vec<vertex::Textured> = vec![
-            [-0.5, -0.5, 0., 0., 0., 0., 0., 0.].into(),
-            [0.0, 0.5, 0., 0., 0., 0., 0.5, 1.].into(),
-            [0.5, -0.5, 0., 0., 0., 0., 1., 0.].into(),
-        ];
-
-        let (vao, vbo) = unsafe { load_render_data_raw(&gl, &vertices, gl::STATIC_DRAW) };
-        Self { vao, vbo, gl }
-    }
-
-    pub fn bind(&self) {
-        unsafe { self.gl.BindVertexArray(self.vao) };
-    }
-
-    pub fn unbind(&self) {
-        unsafe { self.gl.BindVertexArray(0) };
-    }
-}
+use data::{buffer_data, load_render_data_indexed, load_render_data_raw};
 
 pub struct VertLine {
     pub x: f32,
@@ -37,6 +10,7 @@ pub struct VertLine {
     vao: gl::types::GLuint,
 }
 
+#[allow(unused)]
 impl VertLine {
     pub fn new(gl: gl::Gl) -> Self {
         let vertices: Vec<vertex::Bald> = vec![[-1.0, 1.0, 0.0].into(), [-1.0, -1.0, 0.0].into()];
@@ -71,44 +45,15 @@ impl VertLine {
     }
 }
 
-pub struct Parallelogram {
+pub struct Shape {
     gl: gl::Gl,
     vbo: gl::types::GLuint,
     vao: gl::types::GLuint,
 }
 
-impl Parallelogram {
-    pub fn new(gl: gl::Gl) -> Self {
-        let data: Vec<vertex::Textured> = vec![
-            [-0.5, -0.5, 0., 0., 0., 0., 0.0, 0.0].into(),
-            [-0.5, 0.5, 0., 0., 0., 0., 0.0, 2.0].into(),
-            [0.5, 0.5, 0., 0., 0., 0., 2.0, 2.0].into(),
-            [0.5, -0.5, 0., 0., 0., 0., 2.0, 0.0].into(),
-        ];
-
-        let indices: Vec<u32> = vec![0, 1, 2, 0, 3, 2];
-        let (vao, vbo) = unsafe { load_render_data_indexed(&gl, &data, &indices, gl::STATIC_DRAW) };
-        Self { vao, vbo, gl }
-    }
-
-    pub fn bind(&self) {
-        unsafe { self.gl.BindVertexArray(self.vao) };
-    }
-
-    pub fn unbind(&self) {
-        unsafe { self.gl.BindVertexArray(0) };
-    }
-}
-
-pub struct Cube {
-    gl: gl::Gl,
-    vbo: gl::types::GLuint,
-    vao: gl::types::GLuint,
-}
-
-impl Cube {
+impl Shape {
     #[rustfmt::skip]
-    pub fn new(gl: gl::Gl) -> Self {
+    pub fn cube(gl: gl::Gl) -> Self {
         let data: Vec<vertex::Textured> = vec![
             // front
             [-0.5, -0.5, 0.5, 0., 0., 0., 0.0, 0.0].into(),
@@ -135,11 +80,44 @@ impl Cube {
         Self { vao, vbo, gl }
     }
 
+    pub fn parallelogram(gl: gl::Gl) -> Self {
+        let data: Vec<vertex::Textured> = vec![
+            [-0.5, -0.5, 0., 0., 0., 0., 0.0, 0.0].into(),
+            [-0.5, 0.5, 0., 0., 0., 0., 0.0, 2.0].into(),
+            [0.5, 0.5, 0., 0., 0., 0., 2.0, 2.0].into(),
+            [0.5, -0.5, 0., 0., 0., 0., 2.0, 0.0].into(),
+        ];
+
+        let indices: Vec<u32> = vec![0, 1, 2, 0, 3, 2];
+        let (vao, vbo) = unsafe { load_render_data_indexed(&gl, &data, &indices, gl::STATIC_DRAW) };
+        Self { vao, vbo, gl }
+    }
+
+    pub fn triangle(gl: gl::Gl) -> Self {
+        let vertices: Vec<vertex::Textured> = vec![
+            [-0.5, -0.5, 0., 0., 0., 0., 0., 0.].into(),
+            [0.0, 0.5, 0., 0., 0., 0., 0.5, 1.].into(),
+            [0.5, -0.5, 0., 0., 0., 0., 1., 0.].into(),
+        ];
+
+        let (vao, vbo) = unsafe { load_render_data_raw(&gl, &vertices, gl::STATIC_DRAW) };
+        Self { vao, vbo, gl }
+    }
+
     pub fn bind(&self) {
         unsafe { self.gl.BindVertexArray(self.vao) };
     }
 
     pub fn unbind(&self) {
         unsafe { self.gl.BindVertexArray(0) };
+    }
+}
+
+impl Drop for Shape {
+    fn drop(&mut self) {
+        unsafe {
+            self.gl.DeleteBuffers(1, &mut self.vao);
+            self.gl.DeleteBuffers(1, &mut self.vbo);
+        }
     }
 }
