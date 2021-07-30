@@ -7,7 +7,6 @@ use image;
 
 use std::time::SystemTime;
 
-mod buffer;
 mod camera;
 mod entities;
 mod render_gl;

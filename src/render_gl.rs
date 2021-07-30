@@ -120,7 +120,6 @@ pub struct Shader {
 }
 
 pub enum Source<'a> {
-    Data(&'a CStr),
     Filepath(&'a str),
 }
 
@@ -133,7 +132,6 @@ impl Shader {
         use Source::*;
 
         let id = match source {
-            Data(source) => shader_from_source(&gl, source, kind)?,
             Filepath(filepath) => {
                 let mut file = File::open(filepath)?;
                 let mut buf = String::default();
