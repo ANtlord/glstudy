@@ -16,6 +16,7 @@ pub struct Camera {
     aspect_ratio: f32,
     yaw: f32,
     pitch: f32,
+    fly: f32,
 }
 
 pub enum Way {
@@ -39,9 +40,11 @@ impl Camera {
     }
 
     pub fn go(&mut self, value: Way) {
+        let mut front = self.front;
+        front.y = front.y * self.fly;
         match value {
-            Way::Forward(speed) => self.position += self.front * speed,
-            Way::Backward(speed) => self.position -= self.front * speed,
+            Way::Forward(speed) => self.position += front * speed,
+            Way::Backward(speed) => self.position -= front * speed,
             Way::Left(speed) => self.position -= self.right_vector() * speed,
             Way::Right(speed) => self.position += self.right_vector() * speed,
         }
@@ -76,6 +79,7 @@ impl CameraOptions {
                 aspect_ratio: 0.,
                 yaw: 0.,
                 pitch: 0.,
+                fly: 1.,
             },
         }
     }
@@ -112,6 +116,11 @@ impl CameraOptions {
 
     pub fn yaw(&mut self, value: f32) -> &mut Self {
         self.output.yaw = value;
+        self
+    }
+
+    pub fn fly(&mut self, value: bool) -> &mut Self {
+        self.output.fly = if value { 1. } else { 0. };
         self
     }
 

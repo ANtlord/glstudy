@@ -29,6 +29,7 @@ fn standard_camera() -> camera::Camera {
         .yaw(-90.) // as we looking againg Z direction
         .aspect_ratio(WINDOW_ASPECT_RATIO)
         .zoom(45.)
+        .fly(false)
         .build()
 }
 
