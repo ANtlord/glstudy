@@ -77,9 +77,6 @@ impl FrameRate {
     }
 }
 
-#[derive(Default)]
-struct CursorTrack(f64, f64);
-
 fn create_window(
     glfw_ctx: &glfw::Glfw,
 ) -> anyhow::Result<(glfw::Window, Receiver<(f64, glfw::WindowEvent)>)> {
@@ -152,14 +149,13 @@ fn main() -> anyhow::Result<()> {
 
     unsafe {
         gl.Enable(gl::DEPTH_TEST);
-        let err = gl.GetError();
-        if err != gl::NO_ERROR {
-            panic!("opengl error: {}", err);
+        match gl.GetError() {
+            gl::NO_ERROR => (),
+            err => panic!("opengl error: {}", err),
         }
     }
 
-    let mut first_mouse_move = true;
-    let mut last_cursor_pos = (0., 0.);
+    let mut last_cursor_pos = None;
     let mut frame_rate = FrameRate::default();
     while !window.should_close() {
         frame_rate.update().context("fail updating frame rate")?;
@@ -170,18 +166,14 @@ fn main() -> anyhow::Result<()> {
             match event {
                 // catch mouse events **************************************************************
                 glfw::WindowEvent::CursorPos(xpos, ypos) => {
-                    if first_mouse_move {
-                        last_cursor_pos = (xpos, ypos);
-                        first_mouse_move = false;
-                    }
-
+                    let (last_xpos, last_ypos) = last_cursor_pos.unwrap_or((xpos, ypos));
                     let (xoffset, yoffset) = (
-                        (xpos - last_cursor_pos.0) as f32 * CAMERA_SENSETIVITY,
-                        (ypos - last_cursor_pos.1) as f32 * CAMERA_SENSETIVITY,
+                        (xpos - last_xpos) as f32 * CAMERA_SENSETIVITY,
+                        (ypos - last_ypos) as f32 * CAMERA_SENSETIVITY,
                     );
 
                     camera.rotate(yoffset, xoffset);
-                    last_cursor_pos = (xpos, ypos);
+                    last_cursor_pos = Some((xpos, ypos));
                 }
                 glfw::WindowEvent::Key(Key::W, _, Action::Repeat, _) => {
                     camera.go(camera::Way::Forward(camera_speed));
