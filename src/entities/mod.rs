@@ -17,12 +17,7 @@ impl VertLine {
 
         unsafe {
             let (vao, vbo) = load_render_data_raw(&gl, &vertices, gl::DYNAMIC_DRAW);
-            VertLine {
-                gl,
-                vao,
-                vbo,
-                x: -1.,
-            }
+            VertLine { gl, vao, vbo, x: -1. }
         }
     }
 
@@ -51,22 +46,50 @@ pub struct Shape {
     vao: gl::types::GLuint,
 }
 
+#[rustfmt::skip]
+pub fn textured_cube(gl: gl::Gl) -> Shape {
+    let data: Vec<vertex::Textured> = vec![
+        // front
+        [-0.5, -0.5, 0.5, 0., 0., 0., 0.0, 0.0].into(),
+        [-0.5, 0.5, 0.5, 0., 0., 0., 0.0, 2.0].into(),
+        [0.5, 0.5, 0.5, 0., 0., 0., 2.0, 2.0].into(),
+        [0.5, -0.5, 0.5, 0., 0., 0., 2.0, 0.0].into(),
+
+        // back
+        [-0.5, -0.5, -0.5, 0., 0., 0., 2.0, 0.0].into(),
+        [-0.5, 0.5, -0.5, 0., 0., 0., 2.0, 2.0].into(),
+        [0.5, 0.5, -0.5, 0., 0., 0., 0.0, 2.0].into(),
+        [0.5, -0.5, -0.5, 0., 0., 0., 0.0, 0.0].into(),
+    ];
+
+    Shape::cube(gl, &data)
+}
+
+#[rustfmt::skip]
+pub fn bald_cube(gl: gl::Gl) -> Shape {
+    let data: Vec<vertex::Bald> = vec![
+        // front
+        [-0.5, -0.5, 0.5].into(),
+        [-0.5, 0.5, 0.5].into(),
+        [0.5, 0.5, 0.5].into(),
+        [0.5, -0.5, 0.5].into(),
+
+        // back
+        [-0.5, -0.5, -0.5].into(),
+        [-0.5, 0.5, -0.5].into(),
+        [0.5, 0.5, -0.5].into(),
+        [0.5, -0.5, -0.5].into(),
+    ];
+
+    Shape::cube(gl, &data)
+}
+
 impl Shape {
     #[rustfmt::skip]
-    pub fn cube(gl: gl::Gl) -> Self {
-        let data: Vec<vertex::Textured> = vec![
-            // front
-            [-0.5, -0.5, 0.5, 0., 0., 0., 0.0, 0.0].into(),
-            [-0.5, 0.5, 0.5, 0., 0., 0., 0.0, 2.0].into(),
-            [0.5, 0.5, 0.5, 0., 0., 0., 2.0, 2.0].into(),
-            [0.5, -0.5, 0.5, 0., 0., 0., 2.0, 0.0].into(),
-
-            // back
-            [-0.5, -0.5, -0.5, 0., 0., 0., 2.0, 0.0].into(),
-            [-0.5, 0.5, -0.5, 0., 0., 0., 2.0, 2.0].into(),
-            [0.5, 0.5, -0.5, 0., 0., 0., 0.0, 2.0].into(),
-            [0.5, -0.5, -0.5, 0., 0., 0., 0.0, 0.0].into(),
-        ];
+    pub fn cube<I>(gl: gl::Gl, data: &[I]) -> Self
+        where
+            I: vertex::VertexAttribPointer,
+    {
 
         let indices: Vec<u32> = vec![
             0, 1, 2, 0, 3, 2, // front

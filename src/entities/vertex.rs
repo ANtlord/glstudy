@@ -43,10 +43,7 @@ pub struct Chromatic {
 
 impl From<[f32; 6]> for Chromatic {
     fn from(data: [f32; 6]) -> Self {
-        Self {
-            position: [data[0], data[1], data[2]],
-            color: [data[3], data[4], data[5]],
-        }
+        Self { position: [data[0], data[1], data[2]], color: [data[3], data[4], data[5]] }
     }
 }
 

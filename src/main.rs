@@ -34,20 +34,20 @@ fn standard_camera() -> camera::Camera {
         .build()
 }
 
-fn setup_coordinate_system(
+fn set_transformations(
     program: &mut render_gl::Program,
-    camera: &camera::Camera,
+    model: Matrix4<f32>,
+    view: Matrix4<f32>,
+    projection: Matrix4<f32>,
 ) -> anyhow::Result<()> {
-    program.set_used();
-    let model = Matrix4::from_angle_y(Deg(0.0f32));
     program
         .set_uniform("model", &model.as_ref() as &[f32; 16])
         .context("fail to set model matrix to vertex_textured_program")?;
     program
-        .set_uniform("view", &camera.view().as_ref() as &[f32; 16])
+        .set_uniform("view", &view.as_ref() as &[f32; 16])
         .context("fail to set view matrix to vertex_textured_program")?;
     program
-        .set_uniform("projection", &camera.projection().as_ref() as &[f32; 16])
+        .set_uniform("projection", &projection.as_ref() as &[f32; 16])
         .context("fail to set projection matrix to vertex_textured_program")?;
     Ok(())
 }
@@ -59,19 +59,15 @@ struct FrameRate {
 
 impl Default for FrameRate {
     fn default() -> Self {
-        Self {
-            last: SystemTime::now(),
-            duration: Duration::default(),
-        }
+        Self { last: SystemTime::now(), duration: Duration::default() }
     }
 }
 
 impl FrameRate {
     fn update(&mut self) -> anyhow::Result<()> {
         let current = SystemTime::now();
-        self.duration = current
-            .duration_since(self.last)
-            .context("fail getting duration between frames")?;
+        self.duration =
+            current.duration_since(self.last).context("fail getting duration between frames")?;
         self.last = current;
         Ok(())
     }
@@ -110,27 +106,25 @@ fn main() -> anyhow::Result<()> {
     // initialization ends *************************************************************************
 
     // load shader data ****************************************************************************
-    let cube = entities::Shape::cube(gl.clone());
+    let cube = entities::textured_cube(gl.clone());
     unsafe {
         gl.Viewport(0, 0, WINDOW_WIDTH, WINDOW_HEIGHT);
         gl.ClearColor(0.3, 0.3, 0.5, 1.0);
     }
 
-    let shader_program_container = ShaderProgramContainer::new(gl.clone());
+    let mut camera = standard_camera();
+    let model = Matrix4::from_angle_y(Deg(0.0f32));
     // shader begins *******************************************************************************
+    let shader_program_container = ShaderProgramContainer::new(gl.clone());
     let mut vertex_textured_program = shader_program_container
         .get_vertex_textured_program()
         .context("fail getting textured shader program")?;
-
-    let mut camera = standard_camera();
-    setup_coordinate_system(&mut vertex_textured_program, &camera)
-        .context("fail setup coordinate system")?;
+    set_transformations(&mut vertex_textured_program, model, camera.view(), camera.projection())
+        .context("fail setting transformations for textured shader")?;
     // shader ends ********************************************************************************
 
     // texture begins
-    let wallimg = image::open("assets/textures/wall.jpg")
-        .context("fail loading")?
-        .into_rgb8();
+    let wallimg = image::open("assets/textures/wall.jpg").context("fail loading")?.into_rgb8();
     let _wall_texture = texture::Texture::new(gl.clone(), wallimg.as_raw(), wallimg.dimensions());
     // texture ends
 

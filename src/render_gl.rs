@@ -57,8 +57,7 @@ impl Program {
             .with_context(|| format!("fail building C-string from {}", key.as_ref()))?;
         unsafe {
             let loc = self.gl.GetUniformLocation(self.id, key_c.as_ptr());
-            self.gl
-                .UniformMatrix4fv(loc, 1, gl::FALSE, value.as_ptr() as _);
+            self.gl.UniformMatrix4fv(loc, 1, gl::FALSE, value.as_ptr() as _);
         }
         Ok(())
     }
@@ -101,10 +100,7 @@ impl Program {
 
 impl Clone for Program {
     fn clone(&self) -> Self {
-        Self {
-            gl: self.gl.clone(),
-            id: self.id,
-        }
+        Self { gl: self.gl.clone(), id: self.id }
     }
 }
 

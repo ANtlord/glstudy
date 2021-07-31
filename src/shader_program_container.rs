@@ -13,6 +13,8 @@ mod shader_paths {
     pub static VERTEX_CHROMATIC_FRAG: &str = "assets/shaders/vertex_chromatic.frag";
     pub static POINT_VERT: &str = "assets/shaders/point.vert";
     pub static POINT_FRAG: &str = "assets/shaders/point.frag";
+    pub static POINT3D_VERT: &str = "assets/shaders/point3d.vert";
+    pub static LIGHT_FRAG: &str = "assets/shaders/light.frag";
 }
 
 fn build_shader_program(gl: &gl::Gl, vert: &str, frag: &str) -> anyhow::Result<render_gl::Program> {
@@ -49,13 +51,8 @@ impl ShaderProgramContainer {
     }
 
     pub fn get_vertex_textured_program(&self) -> anyhow::Result<render_gl::Program> {
-        make(
-            &self.gl,
-            None,
-            shader_paths::VERTEX_TEXTURED_VERT,
-            shader_paths::VERTEX_TEXTURED_FRAG,
-        )
-        .context("fail creating vertex textured program")
+        make(&self.gl, None, shader_paths::VERTEX_TEXTURED_VERT, shader_paths::VERTEX_TEXTURED_FRAG)
+            .context("fail creating vertex textured program")
     }
 
     pub fn get_vertex_chromatic_program(&self) -> anyhow::Result<render_gl::Program> {
@@ -69,12 +66,12 @@ impl ShaderProgramContainer {
     }
 
     pub fn get_point_program(&self) -> anyhow::Result<render_gl::Program> {
-        make(
-            &self.gl,
-            None,
-            shader_paths::POINT_VERT,
-            shader_paths::POINT_FRAG,
-        )
-        .context("fail creating point program")
+        make(&self.gl, None, shader_paths::POINT_VERT, shader_paths::POINT_FRAG)
+            .context("fail creating point program")
+    }
+
+    pub fn get_light_program(&self) -> anyhow::Result<render_gl::Program> {
+        make(&self.gl, None, shader_paths::POINT3D_VERT, shader_paths::LIGHT_FRAG)
+            .context("fail creating point program")
     }
 }
