@@ -1,9 +1,8 @@
 use anyhow::Context;
-use cgmath::{Deg, Matrix4};
+use cgmath::{Deg, Matrix4, Vector3};
 use gl;
 use glfw;
 use glfw::{Action, Key};
-use image;
 use std::sync::mpsc::Receiver;
 
 use std::time::{Duration, SystemTime};
@@ -21,6 +20,7 @@ const WINDOW_HEIGHT: i32 = 700;
 const WINDOW_ASPECT_RATIO: f32 = WINDOW_WIDTH as f32 / WINDOW_HEIGHT as f32;
 const CAMERA_SENSETIVITY: f32 = 0.1;
 const CAMERA_SPEED: f32 = 2.5;
+const CUBE_VERTEX_COUNT: i32 = 36;
 
 fn standard_camera() -> camera::Camera {
     camera::CameraOptions::new()
@@ -40,14 +40,16 @@ fn set_transformations(
     view: Matrix4<f32>,
     projection: Matrix4<f32>,
 ) -> anyhow::Result<()> {
+    use render_gl::Uniform::Mat4;
+    program.set_used();
     program
-        .set_uniform("model", &model.as_ref() as &[f32; 16])
+        .set_uniform("model", Mat4(&model.as_ref() as &[f32; 16]))
         .context("fail to set model matrix to vertex_textured_program")?;
     program
-        .set_uniform("view", &view.as_ref() as &[f32; 16])
+        .set_uniform("view", Mat4(&view.as_ref() as &[f32; 16]))
         .context("fail to set view matrix to vertex_textured_program")?;
     program
-        .set_uniform("projection", &projection.as_ref() as &[f32; 16])
+        .set_uniform("projection", Mat4(&projection.as_ref() as &[f32; 16]))
         .context("fail to set projection matrix to vertex_textured_program")?;
     Ok(())
 }
@@ -106,7 +108,7 @@ fn main() -> anyhow::Result<()> {
     // initialization ends *************************************************************************
 
     // load shader data ****************************************************************************
-    let cube = entities::textured_cube(gl.clone());
+    let cube = entities::bald_cube(gl.clone());
     unsafe {
         gl.Viewport(0, 0, WINDOW_WIDTH, WINDOW_HEIGHT);
         gl.ClearColor(0.3, 0.3, 0.5, 1.0);
@@ -116,30 +118,29 @@ fn main() -> anyhow::Result<()> {
     let model = Matrix4::from_angle_y(Deg(0.0f32));
     // shader begins *******************************************************************************
     let shader_program_container = ShaderProgramContainer::new(gl.clone());
-    let mut vertex_textured_program = shader_program_container
-        .get_vertex_textured_program()
-        .context("fail getting textured shader program")?;
-    set_transformations(&mut vertex_textured_program, model, camera.view(), camera.projection())
-        .context("fail setting transformations for textured shader")?;
+    let mut light_shader =
+        shader_program_container.get_light_program().context("fail getting light shader")?;
+    set_transformations(&mut light_shader, model, camera.view(), camera.projection())?;
+    light_shader
+        .set_uniform("lightColor", render_gl::Uniform::Vec3(&[1.0f32, 1., 1.]))
+        .context("fail setting lightColor")?;
+    light_shader
+        .set_uniform("objectColor", render_gl::Uniform::Vec3(&[1.0f32, 0.5, 0.31]))
+        .context("fail setting objectColor")?;
+
+    unsafe {
+        gl.Enable(gl::DEPTH_TEST);
+        match gl.GetError() {
+            gl::NO_ERROR => (),
+            err => panic!("opengl error: {}", err),
+        }
+    }
+    let mut lamp_shader =
+        shader_program_container.get_lamp_program().context("fail getting lamp shader")?;
+    set_transformations(&mut lamp_shader, model, camera.view(), camera.projection())?;
     // shader ends ********************************************************************************
 
-    // texture begins
-    let wallimg = image::open("assets/textures/wall.jpg").context("fail loading")?.into_rgb8();
-    let _wall_texture = texture::Texture::new(gl.clone(), wallimg.as_raw(), wallimg.dimensions());
-    // texture ends
-
-    let cube_position_array = [
-        [0.0, 0.0, 0.0],
-        [2.0, 5.0, -15.0],
-        [-1.5, -2.2, -2.5],
-        [-3.8, -2.0, -12.3],
-        [2.4, -0.4, -3.5],
-        [-1.7, 3.0, -7.5],
-        [1.3, -2.0, -2.5],
-        [1.5, 2.0, -2.5],
-        [1.5, 0.2, -1.5],
-        [-1.3, 1.0, -1.5],
-    ];
+    let cube_position_array = [[0.0f32, 0.0, 0.0], [2.0, 5.0, -15.0]];
 
     unsafe {
         gl.Enable(gl::DEPTH_TEST);
@@ -196,43 +197,19 @@ fn main() -> anyhow::Result<()> {
             gl.Clear(gl::COLOR_BUFFER_BIT | gl::DEPTH_BUFFER_BIT);
         }
 
-        vertex_textured_program.set_used();
-        vertex_textured_program
-            .set_uniform("view", &camera.view().as_ref() as &[f32; 16])
-            .context("fail to set view matrix to vertex_textured_program")?;
-
-        vertex_textured_program
-            .set_uniform("projection", &camera.projection().as_ref() as &[f32; 16])
-            .context("fail to set projection matrix to vertex_textured_program")?;
-
         unsafe {
             cube.bind();
-            for (i, pos) in cube_position_array.iter().enumerate() {
-                let pos = Matrix4::from_translation(pos.clone().into());
-                let rot = Matrix4::from_axis_angle([1., 0.3, 0.5].into(), Deg(20. * i as f32));
-                let model = pos * rot;
-                vertex_textured_program
-                    .set_uniform("model", &model.as_ref() as &[f32; 16])
-                    .with_context(|| format!("fail changine `model` uniform of cube {}", i))?;
-                gl.DrawElements(gl::TRIANGLES, 36, gl::UNSIGNED_INT, 0 as *const _);
-            }
+            let pos = Matrix4::from_translation(cube_position_array[0].clone().into());
+            set_transformations(&mut light_shader, pos, camera.view(), camera.projection())
+                .context("fail transforming light_shader")?;
+            gl.DrawElements(gl::TRIANGLES, CUBE_VERTEX_COUNT, gl::UNSIGNED_INT, 0 as *const _);
 
+            let pos = Matrix4::from_translation(cube_position_array[1].clone().into());
+            set_transformations(&mut lamp_shader, pos, camera.view(), camera.projection())
+                .context("fail transforming light_shader")?;
+            gl.DrawElements(gl::TRIANGLES, CUBE_VERTEX_COUNT, gl::UNSIGNED_INT, 0 as *const _);
             cube.unbind();
         }
-
-        // vertex_textured_program.set_used();
-        // unsafe {
-        //     triangle.bind();
-        //     gl.DrawArrays(gl::TRIANGLES, 0, 3);
-        //     triangle.unbind();
-        // }
-
-        // point_program.set_used();
-        // unsafe {
-        //     line.bind();
-        //     gl.DrawArrays(gl::LINES, 0, 2);
-        //     line.unbind();
-        // }
 
         unsafe {
             let err = gl.GetError();

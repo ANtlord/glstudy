@@ -1,4 +1,4 @@
-use cgmath::{prelude::InnerSpace, Angle, Deg, EuclideanSpace, Matrix4, Point3, Vector3};
+use cgmath::{prelude::InnerSpace, Angle, Deg, Matrix4, Point3, Vector3};
 
 const ZOOM_MIN: f32 = 25.;
 const ZOOM_MAX: f32 = 45.;

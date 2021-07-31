@@ -10,6 +10,11 @@ pub struct Program {
     id: gl::types::GLuint,
 }
 
+pub enum Uniform<'a, V> {
+    Mat4(&'a [V]),
+    Vec3(&'a [V]),
+}
+
 impl Program {
     pub fn from_shaders(gl: gl::Gl, shaders: &[Shader]) -> anyhow::Result<Program, String> {
         let program_id = unsafe { gl.CreateProgram() };
@@ -52,12 +57,19 @@ impl Program {
         Ok(Program { gl, id: program_id })
     }
 
-    pub fn set_uniform<T: AsRef<str>, V>(&mut self, key: T, value: &[V]) -> anyhow::Result<()> {
+    pub fn set_uniform<T: AsRef<str>, V>(
+        &mut self,
+        key: T,
+        value: Uniform<V>,
+    ) -> anyhow::Result<()> {
         let key_c = CString::new(key.as_ref())
             .with_context(|| format!("fail building C-string from {}", key.as_ref()))?;
         unsafe {
             let loc = self.gl.GetUniformLocation(self.id, key_c.as_ptr());
-            self.gl.UniformMatrix4fv(loc, 1, gl::FALSE, value.as_ptr() as _);
+            match value {
+                Uniform::Mat4(x) => self.gl.UniformMatrix4fv(loc, 1, gl::FALSE, x.as_ptr() as _),
+                Uniform::Vec3(x) => self.gl.Uniform3fv(loc, 1, x.as_ptr() as _),
+            }
         }
         Ok(())
     }

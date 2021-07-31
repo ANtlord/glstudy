@@ -72,6 +72,11 @@ impl ShaderProgramContainer {
 
     pub fn get_light_program(&self) -> anyhow::Result<render_gl::Program> {
         make(&self.gl, None, shader_paths::POINT3D_VERT, shader_paths::LIGHT_FRAG)
-            .context("fail creating point program")
+            .context("fail creating light program")
+    }
+
+    pub fn get_lamp_program(&self) -> anyhow::Result<render_gl::Program> {
+        make(&self.gl, None, shader_paths::POINT3D_VERT, shader_paths::POINT_FRAG)
+            .context("fail creating lamp program")
     }
 }
