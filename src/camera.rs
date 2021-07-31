@@ -1,4 +1,4 @@
-use cgmath::{prelude::InnerSpace, Angle, Deg, Matrix4, Point3, Vector3, EuclideanSpace};
+use cgmath::{prelude::InnerSpace, Angle, Deg, EuclideanSpace, Matrix4, Point3, Vector3};
 
 const ZOOM_MIN: f32 = 25.;
 const ZOOM_MAX: f32 = 45.;
@@ -28,6 +28,7 @@ pub enum Way {
 
 impl Camera {
     /// An attempt to implement Matrix4::look_at_rh
+    #[rustfmt::skip]
     pub fn view(&self) -> cgmath::Matrix4<f32> {
         let front = Vector3::new(-self.front.x, -self.front.y, -self.front.z);
         let right = self.up.cross(front).normalize();

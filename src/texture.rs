@@ -8,7 +8,6 @@
 ///
 /// Note: the shader which is designed for the texture must have field `uniform Sampler2D
 /// textue_field_name;`
-
 use gl;
 use std::ffi::c_void;
 

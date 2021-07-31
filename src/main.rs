@@ -6,7 +6,7 @@ use glfw::{Action, Key};
 use image;
 use std::sync::mpsc::Receiver;
 
-use std::time::SystemTime;
+use std::time::{Duration, SystemTime};
 
 mod camera;
 mod entities;
@@ -19,6 +19,8 @@ use shader_program_container::ShaderProgramContainer;
 const WINDOW_WIDTH: i32 = 900;
 const WINDOW_HEIGHT: i32 = 700;
 const WINDOW_ASPECT_RATIO: f32 = WINDOW_WIDTH as f32 / WINDOW_HEIGHT as f32;
+const CAMERA_SENSETIVITY: f32 = 0.1;
+const CAMERA_SPEED: f32 = 2.5;
 
 fn standard_camera() -> camera::Camera {
     camera::CameraOptions::new()
@@ -50,7 +52,37 @@ fn setup_coordinate_system(
     Ok(())
 }
 
-fn create_window(glfw_ctx: &glfw::Glfw) -> anyhow::Result<(glfw::Window, Receiver<(f64, glfw::WindowEvent)>)> {
+struct FrameRate {
+    last: SystemTime,
+    duration: Duration,
+}
+
+impl Default for FrameRate {
+    fn default() -> Self {
+        Self {
+            last: SystemTime::now(),
+            duration: Duration::default(),
+        }
+    }
+}
+
+impl FrameRate {
+    fn update(&mut self) -> anyhow::Result<()> {
+        let current = SystemTime::now();
+        self.duration = current
+            .duration_since(self.last)
+            .context("fail getting duration between frames")?;
+        self.last = current;
+        Ok(())
+    }
+}
+
+#[derive(Default)]
+struct CursorTrack(f64, f64);
+
+fn create_window(
+    glfw_ctx: &glfw::Glfw,
+) -> anyhow::Result<(glfw::Window, Receiver<(f64, glfw::WindowEvent)>)> {
     let (mut window, events) = glfw_ctx
         .create_window(
             WINDOW_WIDTH as u32,
@@ -127,39 +159,29 @@ fn main() -> anyhow::Result<()> {
     }
 
     let mut first_mouse_move = true;
-    let mut last_frame_time = SystemTime::now();
     let mut last_cursor_pos = (0., 0.);
-    const CAMERA_SENSETIVITY: f32 = 0.1;
+    let mut frame_rate = FrameRate::default();
     while !window.should_close() {
-        // count last frame duration.
-        let current_frame_time = SystemTime::now();
-        let frame_time = current_frame_time
-            .duration_since(last_frame_time)
-            .context("fail getting duration between frames")?;
-        let frame_time_secs = frame_time.as_secs_f32();
-        last_frame_time = current_frame_time;
-        let camera_speed = 2.5f32 * frame_time_secs;
-
+        frame_rate.update().context("fail updating frame rate")?;
+        let frame_time_secs = frame_rate.duration.as_secs_f32();
+        let camera_speed = CAMERA_SPEED * frame_time_secs;
         glfw.poll_events();
         for (_, event) in glfw::flush_messages(&events) {
             match event {
                 // catch mouse events **************************************************************
                 glfw::WindowEvent::CursorPos(xpos, ypos) => {
                     if first_mouse_move {
-                        last_cursor_pos.0 = xpos;
-                        last_cursor_pos.1 = ypos;
+                        last_cursor_pos = (xpos, ypos);
                         first_mouse_move = false;
                     }
 
-                    let xoffset = xpos - last_cursor_pos.0;
-                    let yoffset = ypos - last_cursor_pos.1;
-                    camera.rotate(
-                        yoffset as f32 * CAMERA_SENSETIVITY,
-                        xoffset as f32 * CAMERA_SENSETIVITY,
+                    let (xoffset, yoffset) = (
+                        (xpos - last_cursor_pos.0) as f32 * CAMERA_SENSETIVITY,
+                        (ypos - last_cursor_pos.1) as f32 * CAMERA_SENSETIVITY,
                     );
 
-                    last_cursor_pos.0 = xpos;
-                    last_cursor_pos.1 = ypos;
+                    camera.rotate(yoffset, xoffset);
+                    last_cursor_pos = (xpos, ypos);
                 }
                 glfw::WindowEvent::Key(Key::W, _, Action::Repeat, _) => {
                     camera.go(camera::Way::Forward(camera_speed));
