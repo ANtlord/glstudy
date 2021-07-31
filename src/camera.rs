@@ -27,30 +27,26 @@ pub enum Way {
 }
 
 impl Camera {
+    /// An attempt to implement Matrix4::look_at_rh
     pub fn view(&self) -> cgmath::Matrix4<f32> {
-        // dbg!(self.position, self.front, self.up);
-        // let front = -self.front;
         let front = Vector3::new(-self.front.x, -self.front.y, -self.front.z);
         let right = self.up.cross(front).normalize();
         let up = front.cross(right).normalize();
-
-        // let translation = Matrix4::new(
-        //     1., 0., 0., 0.,
-        //     0., 1., 0., 0.,
-        //     0., 0., 1., 0.,
-        //     -self.position.x, -self.position.y, -self.position.z, 1.,
-        // );
-
         let rotation = Matrix4::new(
             right.x, up.x, front.x, 0.,
             right.y, up.y, front.y, 0.,
             right.z, up.z, front.z, 0.,
-            -self.position.dot(right), -self.position.dot(up), -self.position.dot(front), 1.,
+            0., 0., 0., 1.,
         );
-        rotation //* translation
-        //Matrix4::one() * m
 
-        // Matrix4::look_at_rh(self.position, self.position + self.front, self.up)
+        let translation = Matrix4::new(
+            1., 0., 0., 0.,
+            0., 1., 0., 0.,
+            0., 0., 1., 0.,
+            -self.position.x, -self.position.y, -self.position.z, 1.,
+        );
+
+        rotation * translation // swap to make 3rd person view
     }
 
     pub fn projection(&self) -> cgmath::Matrix4<f32> {
