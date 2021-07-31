@@ -4,6 +4,7 @@ use gl;
 use glfw;
 use glfw::{Action, Key};
 use image;
+use std::sync::mpsc::Receiver;
 
 use std::time::SystemTime;
 
@@ -49,23 +50,34 @@ fn setup_coordinate_system(
     Ok(())
 }
 
-fn main() -> anyhow::Result<()> {
-    // initialize a window and a context ***********************************************************
-    let mut glfw = glfw::init(glfw::FAIL_ON_ERRORS).unwrap();
-    let (mut window, events) = glfw
+fn create_window(glfw_ctx: &glfw::Glfw) -> anyhow::Result<(glfw::Window, Receiver<(f64, glfw::WindowEvent)>)> {
+    let (mut window, events) = glfw_ctx
         .create_window(
             WINDOW_WIDTH as u32,
             WINDOW_HEIGHT as u32,
             "Draw line demo",
             glfw::WindowMode::Windowed,
         )
-        .expect("Failed to create GLFW window.");
-
+        .context("Failed to create GLFW window within event listener.")?;
+    window.set_cursor_pos_polling(true);
     window.set_key_polling(true);
     window.set_scroll_polling(true);
-    let gl = gl::Gl::load_with(|s| window.get_proc_address(s) as *const _);
+    if glfw_ctx.supports_raw_motion() {
+        window.set_cursor_mode(glfw::CursorMode::Disabled);
+        window.set_raw_mouse_motion(true);
+    } else {
+        println!("mouse raw motion is not supported");
+    }
+
     glfw::Context::make_current(&mut window);
-    window.set_cursor_pos_polling(true);
+    Ok((window, events))
+}
+
+fn main() -> anyhow::Result<()> {
+    // initialize a window and a context ***********************************************************
+    let mut glfw = glfw::init(glfw::FAIL_ON_ERRORS).context("fail initiazing GLFW")?;
+    let (mut window, events) = create_window(&glfw).context("fail creating windows")?;
+    let gl = gl::Gl::load_with(|s| window.get_proc_address(s) as *const _);
     // initialization ends *************************************************************************
 
     // load shader data ****************************************************************************
@@ -112,13 +124,6 @@ fn main() -> anyhow::Result<()> {
         if err != gl::NO_ERROR {
             panic!("opengl error: {}", err);
         }
-    }
-
-    if glfw.supports_raw_motion() {
-        window.set_cursor_mode(glfw::CursorMode::Disabled);
-        window.set_raw_mouse_motion(true);
-    } else {
-        println!("mouse raw motion is not supported");
     }
 
     let mut first_mouse_move = true;
