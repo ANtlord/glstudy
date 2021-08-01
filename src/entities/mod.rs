@@ -46,6 +46,17 @@ pub struct Shape {
     vao: gl::types::GLuint,
 }
 
+fn cube_indices() -> Vec<u32> {
+    vec![
+        0, 1, 2, 0, 3, 2, // front
+        4, 5, 6, 4, 6, 7, // back
+        1, 5, 6, 1, 6, 2, // top
+        0, 4, 7, 0, 7, 3, // bottom
+        0, 1, 5, 0, 5, 4, // left
+        3, 2, 6, 3, 6, 7, // right
+    ]
+}
+
 #[rustfmt::skip]
 pub fn textured_cube(gl: gl::Gl) -> Shape {
     let data: Vec<vertex::Textured> = vec![
@@ -62,7 +73,9 @@ pub fn textured_cube(gl: gl::Gl) -> Shape {
         [0.5, -0.5, -0.5, 0., 0., 0., 0.0, 0.0].into(),
     ];
 
-    Shape::cube(gl, &data)
+    let mut opts = ShapeOptions::new(data);
+    opts.indices(cube_indices());
+    opts.build(gl)
 }
 
 #[rustfmt::skip]
@@ -81,27 +94,92 @@ pub fn bald_cube(gl: gl::Gl) -> Shape {
         [0.5, -0.5, -0.5].into(),
     ];
 
-    Shape::cube(gl, &data)
+    let mut opts = ShapeOptions::new(data);
+    opts.indices(cube_indices());
+    opts.build(gl)
 }
 
-impl Shape {
-    #[rustfmt::skip]
-    pub fn cube<I>(gl: gl::Gl, data: &[I]) -> Self
-        where
-            I: vertex::VertexAttribPointer,
-    {
-        let indices: Vec<u32> = vec![
-            0, 1, 2, 0, 3, 2, // front
-            4, 5, 6, 4, 6, 7, // back
-            1, 5, 6, 1, 6, 2, // top
-            0, 4, 7, 0, 7, 3, // bottom
-            0, 1, 5, 0, 5, 4, // left
-            3, 2, 6, 3, 6, 7, // right
-        ];
-        let (vao, vbo) = unsafe { load_render_data_indexed(&gl, &data, &indices, gl::STATIC_DRAW) };
-        Self { vao, vbo, gl }
+#[rustfmt::skip]
+pub fn normalized_cube(gl: gl::Gl) -> Shape {
+    let data: Vec<vertex::Normalized> = vec![
+        [-0.5, -0.5, -0.5,  0.0,  0.0, -1.0].into(),
+        [ 0.5, -0.5, -0.5,  0.0,  0.0, -1.0].into(),
+        [ 0.5,  0.5, -0.5,  0.0,  0.0, -1.0].into(),
+        [ 0.5,  0.5, -0.5,  0.0,  0.0, -1.0].into(),
+        [-0.5,  0.5, -0.5,  0.0,  0.0, -1.0].into(),
+        [-0.5, -0.5, -0.5,  0.0,  0.0, -1.0].into(),
+
+        [-0.5, -0.5,  0.5,  0.0,  0.0,  1.0].into(),
+        [ 0.5, -0.5,  0.5,  0.0,  0.0,  1.0].into(),
+        [ 0.5,  0.5,  0.5,  0.0,  0.0,  1.0].into(),
+        [ 0.5,  0.5,  0.5,  0.0,  0.0,  1.0].into(),
+        [-0.5,  0.5,  0.5,  0.0,  0.0,  1.0].into(),
+        [-0.5, -0.5,  0.5,  0.0,  0.0,  1.0].into(),
+
+        [-0.5,  0.5,  0.5, -1.0,  0.0,  0.0].into(),
+        [-0.5,  0.5, -0.5, -1.0,  0.0,  0.0].into(),
+        [-0.5, -0.5, -0.5, -1.0,  0.0,  0.0].into(),
+        [-0.5, -0.5, -0.5, -1.0,  0.0,  0.0].into(),
+        [-0.5, -0.5,  0.5, -1.0,  0.0,  0.0].into(),
+        [-0.5,  0.5,  0.5, -1.0,  0.0,  0.0].into(),
+
+        [ 0.5,  0.5,  0.5,  1.0,  0.0,  0.0].into(),
+        [ 0.5,  0.5, -0.5,  1.0,  0.0,  0.0].into(),
+        [ 0.5, -0.5, -0.5,  1.0,  0.0,  0.0].into(),
+        [ 0.5, -0.5, -0.5,  1.0,  0.0,  0.0].into(),
+        [ 0.5, -0.5,  0.5,  1.0,  0.0,  0.0].into(),
+        [ 0.5,  0.5,  0.5,  1.0,  0.0,  0.0].into(),
+
+        [-0.5, -0.5, -0.5,  0.0, -1.0,  0.0].into(),
+        [ 0.5, -0.5, -0.5,  0.0, -1.0,  0.0].into(),
+        [ 0.5, -0.5,  0.5,  0.0, -1.0,  0.0].into(),
+        [ 0.5, -0.5,  0.5,  0.0, -1.0,  0.0].into(),
+        [-0.5, -0.5,  0.5,  0.0, -1.0,  0.0].into(),
+        [-0.5, -0.5, -0.5,  0.0, -1.0,  0.0].into(),
+
+        [-0.5,  0.5, -0.5,  0.0,  1.0,  0.0].into(),
+        [ 0.5,  0.5, -0.5,  0.0,  1.0,  0.0].into(),
+        [ 0.5,  0.5,  0.5,  0.0,  1.0,  0.0].into(),
+        [ 0.5,  0.5,  0.5,  0.0,  1.0,  0.0].into(),
+        [-0.5,  0.5,  0.5,  0.0,  1.0,  0.0].into(),
+        [-0.5,  0.5, -0.5,  0.0,  1.0,  0.0].into()
+    ];
+
+    let opts = ShapeOptions::new(data);
+    opts.build(gl)
+}
+
+struct ShapeOptions<T> {
+    vertices: Vec<T>,
+    indices: Option<Vec<u32>>,
+}
+
+impl<T: vertex::VertexAttribPointer> ShapeOptions<T> {
+    fn new(vertices: Vec<T>) -> Self {
+        Self { vertices, indices: None }
     }
 
+    fn indices(&mut self, vertices: Vec<u32>) -> &mut Self {
+        self.indices = Some(vertices);
+        self
+    }
+
+    fn build(self, gl: gl::Gl) -> Shape {
+        let (vao, vbo) = match self.indices {
+            Some(indices) => unsafe {
+                load_render_data_indexed(&gl, &self.vertices, &indices, gl::STATIC_DRAW)
+            },
+            None => unsafe { load_render_data_raw(&gl, &self.vertices, gl::STATIC_DRAW) },
+        };
+
+        Shape {
+            vao, vbo, gl
+        }
+    }
+}
+
+
+impl Shape {
     pub fn parallelogram(gl: gl::Gl) -> Self {
         let data: Vec<vertex::Textured> = vec![
             [-0.5, -0.5, 0., 0., 0., 0., 0.0, 0.0].into(),

@@ -99,28 +99,6 @@ impl From<[f32; 8]> for Textured {
     }
 }
 
-fn align<T>(gl: &gl::Gl, data: &[&[T]]) {
-    const IS_NORMALIZED: u8 = gl::FALSE;
-    let block_size = data.iter().map(|x| x.len()).sum();
-    let mut shift = 0;
-    for (attribute_loc, attribute_data) in data.iter().enumerate() {
-        unsafe {
-            gl.EnableVertexAttribArray(attribute_loc as _);
-            gl.VertexAttribPointer(
-                attribute_loc as _,
-                attribute_data.len() as _,
-                gl::FLOAT,
-                IS_NORMALIZED,
-                memsize::<T>(block_size),
-                // data for position of vertex is the FIRST 3 float numbers.
-                shift as *const _,
-            );
-        }
-        shift += attribute_data.len();
-    }
-
-}
-
 impl VertexAttribPointer for Textured {
     fn vertex_attrib_pointer(gl: &gl::Gl) {
         // locations are defined in the corresponding vertex shader
@@ -170,3 +148,5 @@ impl VertexAttribPointer for Textured {
         }
     }
 }
+
+pub type Normalized = Chromatic;

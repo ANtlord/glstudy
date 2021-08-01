@@ -128,6 +128,8 @@ fn main() -> anyhow::Result<()> {
     light_shader
         .set_uniform("objectColor", render_gl::Uniform::Vec3(&[1.0f32, 0.5, 0.31]))
         .context("fail setting objectColor")?;
+    light_shader.set_uniform("lightPosition", render_gl::Uniform::Vec3(&[0.5f32, 0., 0.]))
+        .context("fail setting lightPosition for light_shader")?;
 
     unsafe {
         gl.Enable(gl::DEPTH_TEST);
@@ -146,7 +148,7 @@ fn main() -> anyhow::Result<()> {
         * Matrix4::from_nonuniform_scale(20.0f32, 0., 20.)
         * Matrix4::from_angle_x(Deg(89.0f32));
     set_transformations(&mut texture_shader, ground_model, camera.view(), camera.projection())?;
-    let wallimg = image::open("assets/textures/wall.jpg")
+    let _wallimg = image::open("assets/textures/wall.jpg")
         .context("fail loading")?
         .into_rgb8();
     let wallimg = image::open("assets/textures/wall.jpg").context("fail loading")?.into_rgb8();
