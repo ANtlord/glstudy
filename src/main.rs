@@ -1,5 +1,5 @@
 use anyhow::Context;
-use cgmath::{Deg, Matrix4, Vector3};
+use cgmath::{Deg, Matrix4, One};
 use gl;
 use glfw;
 use glfw::{Action, Key};
@@ -108,7 +108,7 @@ fn main() -> anyhow::Result<()> {
     // initialization ends *************************************************************************
 
     // load shader data ****************************************************************************
-    let cube = entities::bald_cube(gl.clone());
+    let cube = entities::normalized_cube(gl.clone());
     let ground = entities::Shape::parallelogram(gl.clone());
     unsafe {
         gl.Viewport(0, 0, WINDOW_WIDTH, WINDOW_HEIGHT);
@@ -116,7 +116,7 @@ fn main() -> anyhow::Result<()> {
     }
 
     let mut camera = standard_camera();
-    let model = Matrix4::from_angle_y(Deg(0.0f32));
+    let model = Matrix4::one();
     // shader begins *******************************************************************************
     let shader_program_container = ShaderProgramContainer::new(gl.clone());
     let mut light_shader =
@@ -128,7 +128,7 @@ fn main() -> anyhow::Result<()> {
     light_shader
         .set_uniform("objectColor", render_gl::Uniform::Vec3(&[1.0f32, 0.5, 0.31]))
         .context("fail setting objectColor")?;
-    light_shader.set_uniform("lightPosition", render_gl::Uniform::Vec3(&[0.5f32, 0., 0.]))
+    light_shader.set_uniform("lightPosition", render_gl::Uniform::Vec3(&[2.0f32, 3., 1.]))
         .context("fail setting lightPosition for light_shader")?;
 
     unsafe {
@@ -138,15 +138,16 @@ fn main() -> anyhow::Result<()> {
             err => panic!("opengl error: {}", err),
         }
     }
+
     let mut lamp_shader =
         shader_program_container.get_lamp_program().context("fail getting lamp shader")?;
     set_transformations(&mut lamp_shader, model, camera.view(), camera.projection())?;
 
     let mut texture_shader = shader_program_container.get_vertex_textured_program()
         .context("fail getting textured shader")?;
-    let ground_model = Matrix4::from_translation([0.0f32, -0.5, 0.].into())
+    let ground_model = Matrix4::from_translation([0.0f32, -1.0, 0.].into())
         * Matrix4::from_nonuniform_scale(20.0f32, 0., 20.)
-        * Matrix4::from_angle_x(Deg(89.0f32));
+        * Matrix4::from_angle_x(Deg(90.0f32));
     set_transformations(&mut texture_shader, ground_model, camera.view(), camera.projection())?;
     let _wallimg = image::open("assets/textures/wall.jpg")
         .context("fail loading")?
@@ -182,7 +183,7 @@ fn main() -> anyhow::Result<()> {
                         (ypos - last_ypos) as f32 * CAMERA_SENSETIVITY,
                     );
 
-                    camera.rotate(yoffset, xoffset);
+                    camera.rotate(-yoffset, xoffset);
                     last_cursor_pos = Some((xpos, ypos));
                 }
                 glfw::WindowEvent::Key(Key::W, _, Action::Repeat, _) => {
@@ -213,16 +214,26 @@ fn main() -> anyhow::Result<()> {
         }
 
         unsafe {
+            // cube is an instance of entities::Shape which data is buffer in the graphics system.
+            // Its building determines way to draw it (glDrawArrays or glDrawElements).
+            // 
+            // Question #1: Is its responsibility to provide way of drawing?
             cube.bind();
-            let pos = Matrix4::from_translation(cube_position_array[0].clone().into());
-            set_transformations(&mut light_shader, pos, camera.view(), camera.projection())
-                .context("fail transforming light_shader")?;
-            gl.DrawElements(gl::TRIANGLES, CUBE_VERTEX_COUNT, gl::UNSIGNED_INT, 0 as *const _);
+            {
+                light_shader.set_used();
+                let pos = Matrix4::from_translation(cube_position_array[0].into());
+                set_transformations(&mut light_shader, pos, camera.view(), camera.projection())
+                    .context("fail transforming light_shader")?;
+                gl.DrawArrays(gl::TRIANGLES, 0, CUBE_VERTEX_COUNT);
+            }
 
-            let pos = Matrix4::from_translation(cube_position_array[1].clone().into());
-            set_transformations(&mut lamp_shader, pos, camera.view(), camera.projection())
-                .context("fail transforming light_shader")?;
-            gl.DrawElements(gl::TRIANGLES, CUBE_VERTEX_COUNT, gl::UNSIGNED_INT, 0 as *const _);
+            {
+                lamp_shader.set_used();
+                let pos = Matrix4::from_translation(cube_position_array[1].into());
+                set_transformations(&mut lamp_shader, pos, camera.view(), camera.projection())
+                    .context("fail transforming light_shader")?;
+                gl.DrawArrays(gl::TRIANGLES, 0, CUBE_VERTEX_COUNT);
+            }
             cube.unbind();
 
             use render_gl::Uniform::Mat4;

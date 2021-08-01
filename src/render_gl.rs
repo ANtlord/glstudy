@@ -58,6 +58,7 @@ impl Program {
         Ok(Program { gl, id: program_id })
     }
 
+    /// Don't use float64. Perhaps it's worth to consider T: Into<[f32; 3]> | Into<f32; 4>
     pub fn set_uniform<T: AsRef<str>, V>(
         &mut self,
         key: T,
@@ -67,6 +68,10 @@ impl Program {
             .with_context(|| format!("fail building C-string from {}", key.as_ref()))?;
         unsafe {
             let loc = self.gl.GetUniformLocation(self.id, key_c.as_ptr());
+            if loc == -1 {
+                anyhow::bail!("location of uniform `{}` is not found", key.as_ref())
+            }
+
             match value {
                 Uniform::Mat4(x) => self.gl.UniformMatrix4fv(loc, 1, gl::FALSE, x.as_ptr() as _),
                 Uniform::Vec3(x) => self.gl.Uniform3fv(loc, 1, x.as_ptr() as _),

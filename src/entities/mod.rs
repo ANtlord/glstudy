@@ -46,6 +46,7 @@ pub struct Shape {
     vao: gl::types::GLuint,
 }
 
+#[allow(unused)]
 fn cube_indices() -> Vec<u32> {
     vec![
         0, 1, 2, 0, 3, 2, // front
@@ -57,6 +58,9 @@ fn cube_indices() -> Vec<u32> {
     ]
 }
 
+/// Data for to draw a cube poorly. Texture on its top and bottom is going to be applied in wrong
+/// way.
+#[allow(unused)]
 #[rustfmt::skip]
 pub fn textured_cube(gl: gl::Gl) -> Shape {
     let data: Vec<vertex::Textured> = vec![
@@ -78,6 +82,7 @@ pub fn textured_cube(gl: gl::Gl) -> Shape {
     opts.build(gl)
 }
 
+#[allow(unused)]
 #[rustfmt::skip]
 pub fn bald_cube(gl: gl::Gl) -> Shape {
     let data: Vec<vertex::Bald> = vec![
@@ -172,12 +177,9 @@ impl<T: vertex::VertexAttribPointer> ShapeOptions<T> {
             None => unsafe { load_render_data_raw(&gl, &self.vertices, gl::STATIC_DRAW) },
         };
 
-        Shape {
-            vao, vbo, gl
-        }
+        Shape { vao, vbo, gl }
     }
 }
-
 
 impl Shape {
     pub fn parallelogram(gl: gl::Gl) -> Self {
