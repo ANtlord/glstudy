@@ -109,6 +109,7 @@ fn main() -> anyhow::Result<()> {
 
     // load shader data ****************************************************************************
     let cube = entities::bald_cube(gl.clone());
+    let ground = entities::Shape::parallelogram(gl.clone());
     unsafe {
         gl.Viewport(0, 0, WINDOW_WIDTH, WINDOW_HEIGHT);
         gl.ClearColor(0.3, 0.3, 0.5, 1.0);
@@ -138,6 +139,18 @@ fn main() -> anyhow::Result<()> {
     let mut lamp_shader =
         shader_program_container.get_lamp_program().context("fail getting lamp shader")?;
     set_transformations(&mut lamp_shader, model, camera.view(), camera.projection())?;
+
+    let mut texture_shader = shader_program_container.get_vertex_textured_program()
+        .context("fail getting textured shader")?;
+    let ground_model = Matrix4::from_translation([0.0f32, -0.5, 0.].into())
+        * Matrix4::from_nonuniform_scale(20.0f32, 0., 20.)
+        * Matrix4::from_angle_x(Deg(89.0f32));
+    set_transformations(&mut texture_shader, ground_model, camera.view(), camera.projection())?;
+    let wallimg = image::open("assets/textures/wall.jpg")
+        .context("fail loading")?
+        .into_rgb8();
+    let wallimg = image::open("assets/textures/wall.jpg").context("fail loading")?.into_rgb8();
+    let _wall_texture = texture::Texture::new(gl.clone(), wallimg.as_raw(), wallimg.dimensions());
     // shader ends ********************************************************************************
 
     let cube_position_array = [[0.0f32, 0.0, 0.0], [2.0, 5.0, -15.0]];
@@ -209,6 +222,16 @@ fn main() -> anyhow::Result<()> {
                 .context("fail transforming light_shader")?;
             gl.DrawElements(gl::TRIANGLES, CUBE_VERTEX_COUNT, gl::UNSIGNED_INT, 0 as *const _);
             cube.unbind();
+
+            use render_gl::Uniform::Mat4;
+            ground.bind();
+            texture_shader.set_used();
+            texture_shader.set_uniform("view", Mat4(camera.view().as_ref() as &[f32; 16]))
+                .context("fail setting view matrix for texture_shader")?;
+            texture_shader.set_uniform("projection", Mat4(camera.projection().as_ref() as &[f32; 16]))
+                .context("fail setting projection matrix for texture_shader")?;
+            gl.DrawElements(gl::TRIANGLES, 6, gl::UNSIGNED_INT, 0 as *const _);
+            ground.unbind();
         }
 
         unsafe {

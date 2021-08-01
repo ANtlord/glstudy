@@ -90,7 +90,6 @@ impl Shape {
         where
             I: vertex::VertexAttribPointer,
     {
-
         let indices: Vec<u32> = vec![
             0, 1, 2, 0, 3, 2, // front
             4, 5, 6, 4, 6, 7, // back

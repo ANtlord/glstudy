@@ -10,6 +10,7 @@ pub struct Program {
     id: gl::types::GLuint,
 }
 
+// TODO: use static arrays of proper sizes instead of slices.
 pub enum Uniform<'a, V> {
     Mat4(&'a [V]),
     Vec3(&'a [V]),
