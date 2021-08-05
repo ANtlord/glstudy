@@ -1,11 +1,11 @@
 use anyhow::Context;
-use cgmath::{Deg, Matrix4, One};
+use cgmath::{Deg, Matrix4, One, Vector4};
 use gl;
 use glfw;
 use glfw::{Action, Key};
 use std::sync::mpsc::Receiver;
 
-use std::time::{Duration, SystemTime};
+use std::time::{Duration, SystemTime, UNIX_EPOCH};
 
 mod camera;
 mod entities;
@@ -19,7 +19,7 @@ const WINDOW_WIDTH: i32 = 900;
 const WINDOW_HEIGHT: i32 = 700;
 const WINDOW_ASPECT_RATIO: f32 = WINDOW_WIDTH as f32 / WINDOW_HEIGHT as f32;
 const CAMERA_SENSETIVITY: f32 = 0.1;
-const CAMERA_SPEED: f32 = 2.5;
+const CAMERA_SPEED: f32 = 20.;
 const CUBE_VERTEX_COUNT: i32 = 36;
 
 fn standard_camera() -> camera::Camera {
@@ -100,6 +100,42 @@ fn create_window(
     Ok((window, events))
 }
 
+/// 0000
+/// ^^^^
+/// ||||- forward
+/// |||-- backward
+/// ||--- left
+/// |---- right
+struct MoveBitMap(u16);
+
+enum Way {
+    Forward,
+    Backward,
+    Left,
+    Right,
+}
+
+impl MoveBitMap {
+    fn set(&self, value: Way) -> Self {
+        match value {
+            Way::Forward => Self(self.0 | 0001),
+            Way::Backward => Self(self.0 |  0010),
+            Way::Left => Self(self.0 | 0100),
+            Way::Right => Self(self.0 | 1000),
+        }
+    }
+
+    fn unset(&self, value: Way) -> Self {
+        match value {
+            Way::Forward => Self(self.0 & 1110),
+            Way::Backward => Self(self.0 &  1101),
+            Way::Left => Self(self.0 & 1011),
+            Way::Right => Self(self.0 & 1011),
+        }
+    }
+}
+
+
 fn main() -> anyhow::Result<()> {
     // initialize a window and a context ***********************************************************
     let mut glfw = glfw::init(glfw::FAIL_ON_ERRORS).context("fail initiazing GLFW")?;
@@ -166,6 +202,12 @@ fn main() -> anyhow::Result<()> {
         }
     }
 
+    let vars = std::env::vars();
+    let mut position = [0.0f32, 3., 10.];
+    let mut rot_y = 45.0f32;
+    let mut rot_z = 0.0f32;
+
+    let mut light_x = 0.0;
     let mut last_cursor_pos = None;
     let mut frame_rate = FrameRate::default();
     while !window.should_close() {
@@ -213,7 +255,18 @@ fn main() -> anyhow::Result<()> {
             gl.Clear(gl::COLOR_BUFFER_BIT | gl::DEPTH_BUFFER_BIT);
         }
 
+
+        let light_model_view = {
+            let pos = Matrix4::from_translation(position.into());
+            rot_z += frame_time_secs * 20.;
+            let mut rot = Matrix4::from_angle_z(Deg(rot_z));
+            rot =  Matrix4::from_angle_y(Deg(rot_y)) * rot;
+            rot * pos
+        };
+
         unsafe {
+            use render_gl::Uniform::{Mat4, Vec3};
+
             // cube is an instance of entities::Shape which data is buffer in the graphics system.
             // Its building determines way to draw it (glDrawArrays or glDrawElements).
             // 
@@ -221,22 +274,30 @@ fn main() -> anyhow::Result<()> {
             cube.bind();
             {
                 light_shader.set_used();
+                light_x += frame_time_secs;
+
+                let pos = Vector4::new(0.0f32, 0., 0., 1.);
+                let pos = light_model_view * pos;
+                light_shader.set_uniform("lightPosition", Vec3(&[
+                        pos.x, pos.y, pos.z,
+                ]))
+                .context("fail setting lightPosition for light_shader")?;
+
                 let pos = Matrix4::from_translation(cube_position_array[0].into());
                 set_transformations(&mut light_shader, pos, camera.view(), camera.projection())
                     .context("fail transforming light_shader")?;
                 gl.DrawArrays(gl::TRIANGLES, 0, CUBE_VERTEX_COUNT);
             }
 
+
             {
                 lamp_shader.set_used();
-                let pos = Matrix4::from_translation(cube_position_array[1].into());
-                set_transformations(&mut lamp_shader, pos, camera.view(), camera.projection())
+                set_transformations(&mut lamp_shader, light_model_view, camera.view(), camera.projection())
                     .context("fail transforming light_shader")?;
                 gl.DrawArrays(gl::TRIANGLES, 0, CUBE_VERTEX_COUNT);
             }
             cube.unbind();
 
-            use render_gl::Uniform::Mat4;
             ground.bind();
             texture_shader.set_used();
             texture_shader.set_uniform("view", Mat4(camera.view().as_ref() as &[f32; 16]))
