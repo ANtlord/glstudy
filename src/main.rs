@@ -118,19 +118,28 @@ enum Way {
 impl MoveBitMap {
     fn set(&self, value: Way) -> Self {
         match value {
-            Way::Forward => Self(self.0 | 0001),
-            Way::Backward => Self(self.0 |  0010),
-            Way::Left => Self(self.0 | 0100),
-            Way::Right => Self(self.0 | 1000),
+            Way::Forward => Self(self.0 | 0b0001),
+            Way::Backward => Self(self.0 | 0b0010),
+            Way::Left => Self(self.0 | 0b0100),
+            Way::Right => Self(self.0 | 0b1000),
         }
     }
 
     fn unset(&self, value: Way) -> Self {
         match value {
-            Way::Forward => Self(self.0 & 1110),
-            Way::Backward => Self(self.0 &  1101),
-            Way::Left => Self(self.0 & 1011),
-            Way::Right => Self(self.0 & 1011),
+            Way::Forward => Self(self.0 & 0b1110),
+            Way::Backward => Self(self.0 & 0b1101),
+            Way::Left => Self(self.0 & 0b1011),
+            Way::Right => Self(self.0 & 0b0111),
+        }
+    }
+
+    fn is(&self, value: Way) -> bool {
+        match value {
+            Way::Forward => self.0 & 0b0001 > 0,
+            Way::Backward => self.0 & 0b0010 > 0,
+            Way::Left => self.0 & 0b0100 > 0,
+            Way::Right => self.0 & 0b1000 > 0,
         }
     }
 }
@@ -210,6 +219,7 @@ fn main() -> anyhow::Result<()> {
     let mut light_x = 0.0;
     let mut last_cursor_pos = None;
     let mut frame_rate = FrameRate::default();
+    let mut camera_move = MoveBitMap(0);
     while !window.should_close() {
         frame_rate.update().context("fail updating frame rate")?;
         let frame_time_secs = frame_rate.duration.as_secs_f32();
@@ -228,18 +238,33 @@ fn main() -> anyhow::Result<()> {
                     camera.rotate(-yoffset, xoffset);
                     last_cursor_pos = Some((xpos, ypos));
                 }
-                glfw::WindowEvent::Key(Key::W, _, Action::Repeat, _) => {
-                    camera.go(camera::Way::Forward(camera_speed));
+
+                glfw::WindowEvent::Key(Key::W, _, Action::Press, _) => {
+                    camera_move = camera_move.set(Way::Forward);
                 }
-                glfw::WindowEvent::Key(Key::A, _, Action::Repeat, _) => {
-                    camera.go(camera::Way::Left(camera_speed));
+                glfw::WindowEvent::Key(Key::A, _, Action::Press, _) => {
+                    camera_move = camera_move.set(Way::Left);
                 }
-                glfw::WindowEvent::Key(Key::S, _, Action::Repeat, _) => {
-                    camera.go(camera::Way::Backward(camera_speed));
+                glfw::WindowEvent::Key(Key::S, _, Action::Press, _) => {
+                    camera_move = camera_move.set(Way::Backward);
                 }
-                glfw::WindowEvent::Key(Key::D, _, Action::Repeat, _) => {
-                    camera.go(camera::Way::Right(camera_speed));
+                glfw::WindowEvent::Key(Key::D, _, Action::Press, _) => {
+                    camera_move = camera_move.set(Way::Right);
                 }
+
+                glfw::WindowEvent::Key(Key::W, _, Action::Release, _) => {
+                    camera_move = camera_move.unset(Way::Forward);
+                }
+                glfw::WindowEvent::Key(Key::A, _, Action::Release, _) => {
+                    camera_move = camera_move.unset(Way::Left);
+                }
+                glfw::WindowEvent::Key(Key::S, _, Action::Release, _) => {
+                    camera_move = camera_move.unset(Way::Backward);
+                }
+                glfw::WindowEvent::Key(Key::D, _, Action::Release, _) => {
+                    camera_move = camera_move.unset(Way::Right);
+                }
+
                 glfw::WindowEvent::Key(Key::Escape, _, Action::Press, _) => {
                     window.set_should_close(true)
                 }
@@ -248,6 +273,22 @@ fn main() -> anyhow::Result<()> {
                 }
                 _ => {}
             }
+        }
+
+        if camera_move.is(Way::Forward) {
+            camera.go(camera::Way::Forward(camera_speed));
+        }
+
+        if camera_move.is(Way::Backward) {
+            camera.go(camera::Way::Backward(camera_speed));
+        }
+
+        if camera_move.is(Way::Left) {
+            camera.go(camera::Way::Left(camera_speed));
+        }
+
+        if camera_move.is(Way::Right) {
+            camera.go(camera::Way::Right(camera_speed));
         }
 
         // drawing begins **************************************************************************
