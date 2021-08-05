@@ -81,6 +81,10 @@ impl Camera {
     fn right_vector(&self) -> Vector3<f32> {
         self.front.cross(self.up).normalize()
     }
+
+    pub fn position(&self) -> [f32; 3] {
+        self.position.into()
+    }
 }
 
 pub struct CameraOptions {

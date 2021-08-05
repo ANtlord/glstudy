@@ -12,7 +12,6 @@ pub fn standard_camera(aspect: f32) -> camera::Camera {
         .yaw(-90.) // as we looking againg Z direction
         .aspect_ratio(aspect)
         .zoom(45.)
-        .fly(false)
         .build()
 }
 

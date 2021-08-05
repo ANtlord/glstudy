@@ -1,3 +1,8 @@
+use anyhow::Context;
+use cgmath::Matrix4;
+
+use crate::render_gl;
+
 /// 0000
 /// ^^^^
 /// ||||- forward
@@ -32,7 +37,7 @@ impl MoveBitMap {
         }
     }
 
-    pub fn is(&self, value: Way) -> bool {
+    pub fn has(&self, value: Way) -> bool {
         match value {
             Way::Forward => self.0 & 0b0001 > 0,
             Way::Backward => self.0 & 0b0010 > 0,
@@ -46,4 +51,24 @@ impl Default for MoveBitMap {
     fn default() -> Self {
         Self(0)
     }
+}
+
+pub fn set_transformations(
+    program: &mut render_gl::Program,
+    model: Matrix4<f32>,
+    view: Matrix4<f32>,
+    projection: Matrix4<f32>,
+) -> anyhow::Result<()> {
+    use render_gl::Uniform::Mat4;
+    program.set_used();
+    program
+        .set_uniform("model", Mat4(&model.as_ref() as &[f32; 16]))
+        .context("fail to set model matrix to vertex_textured_program")?;
+    program
+        .set_uniform("view", Mat4(&view.as_ref() as &[f32; 16]))
+        .context("fail to set view matrix to vertex_textured_program")?;
+    program
+        .set_uniform("projection", Mat4(&projection.as_ref() as &[f32; 16]))
+        .context("fail to set projection matrix to vertex_textured_program")?;
+    Ok(())
 }

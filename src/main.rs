@@ -4,7 +4,7 @@ use gl;
 use glfw;
 use glfw::{Action, Key};
 
-use std::time::{Duration, SystemTime, UNIX_EPOCH};
+use std::time::{Duration, SystemTime};
 
 mod camera;
 mod entities;
@@ -14,35 +14,15 @@ mod render_gl;
 mod shader_program_container;
 mod texture;
 
-use movement::{MoveBitMap, Way};
+use movement::{MoveBitMap, Way, set_transformations};
 use shader_program_container::ShaderProgramContainer;
 
 const WINDOW_WIDTH: i32 = 900;
 const WINDOW_HEIGHT: i32 = 700;
 const WINDOW_ASPECT_RATIO: f32 = WINDOW_WIDTH as f32 / WINDOW_HEIGHT as f32;
 const CAMERA_SENSETIVITY: f32 = 0.1;
-const CAMERA_SPEED: f32 = 20.;
+const CAMERA_SPEED: f32 = 10.;
 const CUBE_VERTEX_COUNT: i32 = 36;
-
-fn set_transformations(
-    program: &mut render_gl::Program,
-    model: Matrix4<f32>,
-    view: Matrix4<f32>,
-    projection: Matrix4<f32>,
-) -> anyhow::Result<()> {
-    use render_gl::Uniform::Mat4;
-    program.set_used();
-    program
-        .set_uniform("model", Mat4(&model.as_ref() as &[f32; 16]))
-        .context("fail to set model matrix to vertex_textured_program")?;
-    program
-        .set_uniform("view", Mat4(&view.as_ref() as &[f32; 16]))
-        .context("fail to set view matrix to vertex_textured_program")?;
-    program
-        .set_uniform("projection", Mat4(&projection.as_ref() as &[f32; 16]))
-        .context("fail to set projection matrix to vertex_textured_program")?;
-    Ok(())
-}
 
 struct FrameRate {
     last: SystemTime,
@@ -62,6 +42,24 @@ impl FrameRate {
             current.duration_since(self.last).context("fail getting duration between frames")?;
         self.last = current;
         Ok(())
+    }
+}
+
+fn move_camera(camera: &mut camera::Camera, speed: f32, directions: &MoveBitMap) {
+    if directions.has(Way::Forward) {
+        camera.go(camera::Way::Forward(speed));
+    }
+
+    if directions.has(Way::Backward) {
+        camera.go(camera::Way::Backward(speed));
+    }
+
+    if directions.has(Way::Left) {
+        camera.go(camera::Way::Left(speed));
+    }
+
+    if directions.has(Way::Right) {
+        camera.go(camera::Way::Right(speed));
     }
 }
 
@@ -193,22 +191,7 @@ fn main() -> anyhow::Result<()> {
             }
         }
 
-        if camera_move.is(Way::Forward) {
-            camera.go(camera::Way::Forward(camera_speed));
-        }
-
-        if camera_move.is(Way::Backward) {
-            camera.go(camera::Way::Backward(camera_speed));
-        }
-
-        if camera_move.is(Way::Left) {
-            camera.go(camera::Way::Left(camera_speed));
-        }
-
-        if camera_move.is(Way::Right) {
-            camera.go(camera::Way::Right(camera_speed));
-        }
-
+        move_camera(&mut camera, camera_speed, &camera_move);
         // drawing begins **************************************************************************
         unsafe {
             gl.Clear(gl::COLOR_BUFFER_BIT | gl::DEPTH_BUFFER_BIT);
@@ -232,13 +215,16 @@ fn main() -> anyhow::Result<()> {
             cube.bind();
             {
                 light_shader.set_used();
-                light_x += frame_time_secs;
-
-                let pos = Vector4::new(0.0f32, 0., 0., 1.);
-                let pos = light_model_view * pos;
+                // let pos = Vector4::new(0.0f32, 0., 0., 1.);
+                // let pos = light_model_view * pos;
                 light_shader
-                    .set_uniform("lightPosition", Vec3(&[pos.x, pos.y, pos.z]))
+                    .set_uniform("lightPosition", Vec3(&[1.2f32, 1.0, 2.0]))
                     .context("fail setting lightPosition for light_shader")?;
+
+                let view_position = camera.position();
+                light_shader
+                    .set_uniform("viewPosition", Vec3(&view_position))
+                    .context("fail setting viewPosition for light_shader")?;
 
                 let pos = Matrix4::from_translation(cube_position_array[0].into());
                 set_transformations(&mut light_shader, pos, camera.view(), camera.projection())
