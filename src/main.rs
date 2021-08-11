@@ -21,7 +21,7 @@ const WINDOW_WIDTH: i32 = 900;
 const WINDOW_HEIGHT: i32 = 700;
 const WINDOW_ASPECT_RATIO: f32 = WINDOW_WIDTH as f32 / WINDOW_HEIGHT as f32;
 const CAMERA_SENSETIVITY: f32 = 0.1;
-const CAMERA_SPEED: f32 = 10.;
+const CAMERA_SPEED: f32 = 5.;
 const CUBE_VERTEX_COUNT: i32 = 36;
 
 struct FrameRate {
@@ -87,14 +87,11 @@ fn main() -> anyhow::Result<()> {
         shader_program_container.get_light_program().context("fail getting light shader")?;
     set_transformations(&mut light_shader, model, camera.view(), camera.projection())?;
     light_shader
-        .set_uniform("lightColor", render_gl::Uniform::Vec3(&[1.0f32, 1., 1.]))
+        .set_uniform("lightColor", render_gl::Uniform::Vec3(&[1.0f32, 0., 0.]))
         .context("fail setting lightColor")?;
     light_shader
         .set_uniform("objectColor", render_gl::Uniform::Vec3(&[1.0f32, 0.5, 0.31]))
         .context("fail setting objectColor")?;
-    light_shader
-        .set_uniform("lightPosition", render_gl::Uniform::Vec3(&[2.0f32, 3., 1.]))
-        .context("fail setting lightPosition for light_shader")?;
 
     unsafe {
         gl.Enable(gl::DEPTH_TEST);
@@ -205,6 +202,7 @@ fn main() -> anyhow::Result<()> {
             rot * pos
         };
 
+        let light_position = [-1.2f32, 1.0, 2.0];
         unsafe {
             use render_gl::Uniform::{Mat4, Vec3};
 
@@ -218,7 +216,7 @@ fn main() -> anyhow::Result<()> {
                 // let pos = Vector4::new(0.0f32, 0., 0., 1.);
                 // let pos = light_model_view * pos;
                 light_shader
-                    .set_uniform("lightPosition", Vec3(&[1.2f32, 1.0, 2.0]))
+                    .set_uniform("lightPosition", Vec3(&light_position))
                     .context("fail setting lightPosition for light_shader")?;
 
                 let view_position = camera.position();
@@ -233,10 +231,12 @@ fn main() -> anyhow::Result<()> {
             }
 
             {
+                let model = Matrix4::from_translation(light_position.into());
+                let model = model * Matrix4::from_scale(0.2);
                 lamp_shader.set_used();
                 set_transformations(
                     &mut lamp_shader,
-                    light_model_view,
+                    model,
                     camera.view(),
                     camera.projection(),
                 )
