@@ -11,9 +11,10 @@ pub struct Program {
 }
 
 // TODO: use static arrays of proper sizes instead of slices.
-pub enum Uniform<'a, V> {
-    Mat4(&'a [V]),
-    Vec3(&'a [V]),
+pub enum Uniform<'a> {
+    Mat4(&'a [f32]),
+    Vec3(&'a [f32]),
+    Float32(f32),
 }
 
 impl Program {
@@ -59,10 +60,10 @@ impl Program {
     }
 
     /// Don't use float64. Perhaps it's worth to consider T: Into<[f32; 3]> | Into<f32; 4>
-    pub fn set_uniform<T: AsRef<str>, V>(
+    pub fn set_uniform<T: AsRef<str>>(
         &mut self,
         key: T,
-        value: Uniform<V>,
+        value: Uniform,
     ) -> anyhow::Result<()> {
         let key_c = CString::new(key.as_ref())
             .with_context(|| format!("fail building C-string from {}", key.as_ref()))?;
@@ -75,6 +76,7 @@ impl Program {
             match value {
                 Uniform::Mat4(x) => self.gl.UniformMatrix4fv(loc, 1, gl::FALSE, x.as_ptr() as _),
                 Uniform::Vec3(x) => self.gl.Uniform3fv(loc, 1, x.as_ptr() as _),
+                Uniform::Float32(x) => self.gl.Uniform1f(loc, x as _),
             }
         }
         Ok(())
@@ -211,7 +213,7 @@ fn shader_from_source(
         }
 
         let errtext = error.to_string_lossy().into_owned();
-        return Err(anyhow::anyhow!("{}", errtext))?;
+        return Err(anyhow::anyhow!("{}", errtext));
     }
 
     Ok(id)

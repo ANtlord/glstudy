@@ -5,6 +5,7 @@ use glfw;
 use glfw::{Action, Key};
 
 use std::time::{Duration, SystemTime};
+use std::ptr;
 
 mod camera;
 mod entities;
@@ -89,11 +90,27 @@ fn main() -> anyhow::Result<()> {
         shader_program_container.get_light_program().context("fail getting light shader")?;
     set_transformations(&mut light_shader, model, camera.view(), camera.projection())?;
     light_shader
-        .set_uniform("lightColor", render_gl::Uniform::Vec3(&[1.0f32, 1., 1.]))
-        .context("fail setting lightColor")?;
+        .set_uniform("light.ambient", render_gl::Uniform::Vec3(&[0.2, 0.2, 0.2]))
+        .context("fail setting light.ambient")?;
     light_shader
-        .set_uniform("objectColor", render_gl::Uniform::Vec3(&[1.0f32, 0.5, 0.31]))
-        .context("fail setting objectColor")?;
+        .set_uniform("light.diffuse", render_gl::Uniform::Vec3(&[0.5, 0.5, 0.5]))
+        .context("fail setting light.diffuse")?;
+    light_shader
+        .set_uniform("light.specular", render_gl::Uniform::Vec3(&[1.0f32, 1., 1.]))
+        .context("fail setting light.specular")?;
+
+    light_shader
+        .set_uniform("material.ambient", render_gl::Uniform::Vec3(&[1.0, 0.5, 0.31]))
+        .context("fail setting material.ambient")?;
+    light_shader
+        .set_uniform("material.diffuse", render_gl::Uniform::Vec3(&[1.0, 0.5, 0.31]))
+        .context("fail setting material.diffuse")?;
+    light_shader
+        .set_uniform("material.specular", render_gl::Uniform::Vec3(&[0.5, 0.5, 0.5]))
+        .context("fail setting material.specular")?;
+    light_shader
+        .set_uniform("material.shininess", render_gl::Uniform::Float32(32.))
+        .context("fail setting material.shininess")?;
 
     unsafe {
         gl.Enable(gl::DEPTH_TEST);
@@ -105,8 +122,9 @@ fn main() -> anyhow::Result<()> {
 
     let mut lamp_shader =
         shader_program_container.get_lamp_program().context("fail getting lamp shader")?;
+    let mut lamp_shader_other =
+        shader_program_container.get_lamp_program().context("fail getting lamp shader")?;
     set_transformations(&mut lamp_shader, model, camera.view(), camera.projection())?;
-
     let mut texture_shader = shader_program_container
         .get_vertex_textured_program()
         .context("fail getting textured shader")?;
@@ -114,7 +132,6 @@ fn main() -> anyhow::Result<()> {
         * Matrix4::from_nonuniform_scale(20.0f32, 0., 20.)
         * Matrix4::from_angle_x(Deg(90.0f32));
     set_transformations(&mut texture_shader, ground_model, camera.view(), camera.projection())?;
-    let _wallimg = image::open("assets/textures/wall.jpg").context("fail loading")?.into_rgb8();
     let wallimg = image::open("assets/textures/wall.jpg").context("fail loading")?.into_rgb8();
     let _wall_texture = texture::Texture::new(gl.clone(), wallimg.as_raw(), wallimg.dimensions());
     // shader ends ********************************************************************************
@@ -215,11 +232,12 @@ fn main() -> anyhow::Result<()> {
             cube.bind();
             {
                 light_shader.set_used();
-                let pos = Vector4::new(0.0f32, 0., 0., 1.);
-                let pos = light_model_view * pos;
+                // (0, 0, 0, 1) - it's just the center of the space. After the multiplication it's
+                // the position of the lamp.
+                let pos = light_model_view * Vector4::new(0.0f32, 0., 0., 1.);
                 light_shader
-                    .set_uniform("lightPosition", Vec3(&[pos.x, pos.y, pos.z]))
-                    .context("fail setting lightPosition for light_shader")?;
+                    .set_uniform("light.position", Vec3(&[pos.x, pos.y, pos.z]))
+                    .context("fail setting light.position for light_shader")?;
 
                 let view_position = camera.position();
                 light_shader
@@ -245,6 +263,20 @@ fn main() -> anyhow::Result<()> {
                 .context("fail transforming light_shader")?;
                 gl.DrawArrays(gl::TRIANGLES, 0, CUBE_VERTEX_COUNT);
             }
+
+            {
+                let lamp_shader_other_model = Matrix4::from_translation(cube_position_array[1].into());
+                lamp_shader_other.set_used();
+                set_transformations(
+                    &mut lamp_shader_other,
+                    lamp_shader_other_model,
+                    camera.view(),
+                    camera.projection(),
+                )
+                .context("fail transforming light_shader_other")?;
+                gl.DrawArrays(gl::TRIANGLES, 0, CUBE_VERTEX_COUNT);
+            }
+
             cube.unbind();
 
             ground.bind();
@@ -255,7 +287,7 @@ fn main() -> anyhow::Result<()> {
             texture_shader
                 .set_uniform("projection", Mat4(camera.projection().as_ref() as &[f32; 16]))
                 .context("fail setting projection matrix for texture_shader")?;
-            gl.DrawElements(gl::TRIANGLES, 6, gl::UNSIGNED_INT, 0 as *const _);
+            gl.DrawElements(gl::TRIANGLES, 6, gl::UNSIGNED_INT, ptr::null());
             ground.unbind();
         }
 
