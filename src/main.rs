@@ -204,7 +204,7 @@ fn main() -> anyhow::Result<()> {
             rot * pos
         };
 
-        let light_position = [1.2f32, 1.0, 2.0];
+        // let light_position = [1.2f32, 1.0, 2.0];
         unsafe {
             use render_gl::Uniform::{Mat4, Vec3};
 
@@ -215,10 +215,10 @@ fn main() -> anyhow::Result<()> {
             cube.bind();
             {
                 light_shader.set_used();
-                // let pos = Vector4::new(0.0f32, 0., 0., 1.);
-                // let pos = light_model_view * pos;
+                let pos = Vector4::new(0.0f32, 0., 0., 1.);
+                let pos = light_model_view * pos;
                 light_shader
-                    .set_uniform("lightPosition", Vec3(&light_position))
+                    .set_uniform("lightPosition", Vec3(&[pos.x, pos.y, pos.z]))
                     .context("fail setting lightPosition for light_shader")?;
 
                 let view_position = camera.position();
@@ -233,12 +233,12 @@ fn main() -> anyhow::Result<()> {
             }
 
             {
-                let model = Matrix4::from_translation(light_position.into());
-                let model = model * Matrix4::from_scale(0.2);
+                //let model = Matrix4::from_translation(light_position.into());
+                //let model = model * Matrix4::from_scale(0.2);
                 lamp_shader.set_used();
                 set_transformations(
                     &mut lamp_shader,
-                    model,
+                    light_model_view,
                     camera.view(),
                     camera.projection(),
                 )
