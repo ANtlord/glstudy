@@ -12,22 +12,23 @@ uniform vec3 viewPosition;
 
 void main()
 {
+    // ambient
+    float ambientStrength = 0.1;
+    vec3 ambient = ambientStrength * lightColor;
+
     // diffuse
     vec3 fragNorm = normalize(normal);
     vec3 lightDir = normalize(lightPosition - fragPosition); // from light source to the fragment position?
-    float diff = max(dot(lightDir, fragNorm), 0.0); // cos(angle between the vectors);
+    float diff = max(dot(fragNorm, lightDir), 0.0); // cos(angle between the vectors);
     vec3 diffuse = diff * lightColor;
 
-    // ambient
-    float ambientStrength = 0.3;
-    vec3 ambient = lightColor * ambientStrength;
-
     // specular
-    float specularStrength = 1.0;
+    float specularStrength = 0.5;
     vec3 viewDir = normalize(viewPosition - fragPosition); // from view source to the fragment position?
     vec3 reflectDir = reflect(-lightDir, fragNorm);
     float spec = pow(max(dot(viewDir, reflectDir), 0.0), 32);
-    vec3 specular = spec * specularStrength * lightColor;
+    vec3 specular = specularStrength * spec * lightColor;
 
-    Color = vec4((ambient + diffuse + specular) * objectColor, 1.0);
+    vec3 result = (ambient + diffuse + specular) * objectColor;
+    Color = vec4(result, 1.0);
 }
