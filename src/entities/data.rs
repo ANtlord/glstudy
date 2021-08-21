@@ -54,7 +54,7 @@ where
     let vertex_buffer_object = new_array_buffer(&gl);
     let vertex_array_object = new_vertex_array(&gl);
     // don't unload because it's stored within vertex_array_object.
-    let element_buffer_object = new_vertex_array(&gl);
+    let element_buffer_object = new_array_buffer(&gl);
     gl.BindVertexArray(vertex_array_object);
 
     gl.BindBuffer(gl::ARRAY_BUFFER, vertex_buffer_object);

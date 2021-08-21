@@ -66,6 +66,8 @@ fn move_camera(camera: &mut camera::Camera, speed: f32, directions: &MoveBitMap)
 fn main() -> anyhow::Result<()> {
     // initialize a window and a context ***********************************************************
     let mut glfw = glfw::init(glfw::FAIL_ON_ERRORS).context("fail initiazing GLFW")?;
+    glfw.window_hint(glfw::WindowHint::ContextVersion(3, 3));
+    glfw.window_hint(glfw::WindowHint::OpenGlProfile(glfw::OpenGlProfileHint::Core));
     let (mut window, events) = init::window(&glfw, WINDOW_WIDTH as _, WINDOW_HEIGHT as _)
         .context("fail creating windows")?;
     let gl = gl::Gl::load_with(|s| window.get_proc_address(s) as *const _);
@@ -87,7 +89,7 @@ fn main() -> anyhow::Result<()> {
         shader_program_container.get_light_program().context("fail getting light shader")?;
     set_transformations(&mut light_shader, model, camera.view(), camera.projection())?;
     light_shader
-        .set_uniform("lightColor", render_gl::Uniform::Vec3(&[1.0f32, 0., 0.]))
+        .set_uniform("lightColor", render_gl::Uniform::Vec3(&[1.0f32, 1., 1.]))
         .context("fail setting lightColor")?;
     light_shader
         .set_uniform("objectColor", render_gl::Uniform::Vec3(&[1.0f32, 0.5, 0.31]))
@@ -202,7 +204,7 @@ fn main() -> anyhow::Result<()> {
             rot * pos
         };
 
-        let light_position = [-1.2f32, 1.0, 2.0];
+        let light_position = [1.2f32, 1.0, 2.0];
         unsafe {
             use render_gl::Uniform::{Mat4, Vec3};
 
