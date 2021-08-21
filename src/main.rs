@@ -4,8 +4,8 @@ use gl;
 use glfw;
 use glfw::{Action, Key};
 
-use std::time::{Duration, SystemTime};
 use std::ptr;
+use std::time::{Duration, SystemTime};
 
 mod camera;
 mod entities;
@@ -15,7 +15,7 @@ mod render_gl;
 mod shader_program_container;
 mod texture;
 
-use movement::{MoveBitMap, Way, set_transformations};
+use movement::{set_transformations, MoveBitMap, Way};
 use shader_program_container::ShaderProgramContainer;
 
 const WINDOW_WIDTH: i32 = 900;
@@ -64,6 +64,34 @@ fn move_camera(camera: &mut camera::Camera, speed: f32, directions: &MoveBitMap)
     }
 }
 
+fn set_light_shader_uniforms(light_shader: &mut render_gl::Program) -> anyhow::Result<()> {
+    let light_shader_uniforms = [
+        ("light.ambient", render_gl::Uniform::Vec3(&[0.2, 0.2, 0.2])),
+        ("light.diffuse", render_gl::Uniform::Vec3(&[0.5, 0.5, 0.5])),
+        ("light.specular", render_gl::Uniform::Vec3(&[1.0f32, 1., 1.])),
+        ("material.ambient", render_gl::Uniform::Vec3(&[1.0, 0.5, 0.31])),
+        ("material.diffuse", render_gl::Uniform::Vec3(&[1.0, 0.5, 0.31])),
+        ("material.specular", render_gl::Uniform::Vec3(&[0.5, 0.5, 0.5])),
+        ("material.shininess", render_gl::Uniform::Float32(32.)),
+    ];
+    light_shader.set_uniforms(light_shader_uniforms).context("fail setting initial uniforms")
+}
+
+fn glerr(gl: &gl::Gl) -> anyhow::Result<()> {
+    unsafe {
+        match gl.GetError() {
+            gl::NO_ERROR => Ok(()),
+            err => anyhow::bail!("opengl error: {}", err),
+        }
+    }
+}
+
+fn ground_model_transformations() -> Matrix4<f32> {
+    Matrix4::from_translation([0.0f32, -1.0, 0.].into())
+        * Matrix4::from_nonuniform_scale(20.0f32, 0., 20.)
+        * Matrix4::from_angle_x(Deg(90.0f32))
+}
+
 fn main() -> anyhow::Result<()> {
     // initialize a window and a context ***********************************************************
     let mut glfw = glfw::init(glfw::FAIL_ON_ERRORS).context("fail initiazing GLFW")?;
@@ -86,69 +114,42 @@ fn main() -> anyhow::Result<()> {
     let model = Matrix4::one();
     // shader begins *******************************************************************************
     let shader_program_container = ShaderProgramContainer::new(gl.clone());
-    let mut light_shader =
-        shader_program_container.get_light_program().context("fail getting light shader")?;
-    set_transformations(&mut light_shader, model, camera.view(), camera.projection())?;
-    light_shader
-        .set_uniform("light.ambient", render_gl::Uniform::Vec3(&[0.2, 0.2, 0.2]))
-        .context("fail setting light.ambient")?;
-    light_shader
-        .set_uniform("light.diffuse", render_gl::Uniform::Vec3(&[0.5, 0.5, 0.5]))
-        .context("fail setting light.diffuse")?;
-    light_shader
-        .set_uniform("light.specular", render_gl::Uniform::Vec3(&[1.0f32, 1., 1.]))
-        .context("fail setting light.specular")?;
-
-    light_shader
-        .set_uniform("material.ambient", render_gl::Uniform::Vec3(&[1.0, 0.5, 0.31]))
-        .context("fail setting material.ambient")?;
-    light_shader
-        .set_uniform("material.diffuse", render_gl::Uniform::Vec3(&[1.0, 0.5, 0.31]))
-        .context("fail setting material.diffuse")?;
-    light_shader
-        .set_uniform("material.specular", render_gl::Uniform::Vec3(&[0.5, 0.5, 0.5]))
-        .context("fail setting material.specular")?;
-    light_shader
-        .set_uniform("material.shininess", render_gl::Uniform::Float32(32.))
-        .context("fail setting material.shininess")?;
-
-    unsafe {
-        gl.Enable(gl::DEPTH_TEST);
-        match gl.GetError() {
-            gl::NO_ERROR => (),
-            err => panic!("opengl error: {}", err),
-        }
-    }
+    let mut light_shader = {
+        let mut shader_program =
+            shader_program_container.get_light_program().context("fail getting light shader")?;
+        set_transformations(&mut shader_program, model, camera.view(), camera.projection())?;
+        set_light_shader_uniforms(&mut shader_program)?;
+        shader_program
+    };
 
     let mut lamp_shader =
         shader_program_container.get_lamp_program().context("fail getting lamp shader")?;
     let mut lamp_shader_other =
         shader_program_container.get_lamp_program().context("fail getting lamp shader")?;
-    set_transformations(&mut lamp_shader, model, camera.view(), camera.projection())?;
+    set_transformations(&mut lamp_shader_other, model, camera.view(), camera.projection())?;
     let mut texture_shader = shader_program_container
         .get_vertex_textured_program()
         .context("fail getting textured shader")?;
-    let ground_model = Matrix4::from_translation([0.0f32, -1.0, 0.].into())
-        * Matrix4::from_nonuniform_scale(20.0f32, 0., 20.)
-        * Matrix4::from_angle_x(Deg(90.0f32));
-    set_transformations(&mut texture_shader, ground_model, camera.view(), camera.projection())?;
+    set_transformations(
+        &mut texture_shader,
+        ground_model_transformations(),
+        camera.view(),
+        camera.projection(),
+    )?;
+
     let wallimg = image::open("assets/textures/wall.jpg").context("fail loading")?.into_rgb8();
     let _wall_texture = texture::Texture::new(gl.clone(), wallimg.as_raw(), wallimg.dimensions());
     // shader ends ********************************************************************************
 
     let cube_position_array = [[0.0f32, 0.0, 0.0], [2.0, 5.0, -15.0]];
-
     unsafe {
         gl.Enable(gl::DEPTH_TEST);
-        match gl.GetError() {
-            gl::NO_ERROR => (),
-            err => panic!("opengl error: {}", err),
-        }
+        glerr(&gl).context("fail enabling delth test")?;
     }
 
-    let position = [0.0f32, 3., 10.];
-    let rot_y = 45.0f32;
-    let mut rot_z = 0.0f32;
+    let light_position = [0.0f32, 3., 10.];
+    let light_rot_y = 45.0f32;
+    let mut light_rot_z = 0.0f32;
     let mut last_cursor_pos = None;
     let mut frame_rate = FrameRate::default();
     let mut camera_move = MoveBitMap::default();
@@ -214,14 +215,13 @@ fn main() -> anyhow::Result<()> {
         }
 
         let light_model_view = {
-            let pos = Matrix4::from_translation(position.into());
-            rot_z += frame_time_secs * 20.;
-            let mut rot = Matrix4::from_angle_z(Deg(rot_z));
-            rot = Matrix4::from_angle_y(Deg(rot_y)) * rot;
+            let pos = Matrix4::from_translation(light_position.into());
+            light_rot_z += frame_time_secs * 20.;
+            let mut rot = Matrix4::from_angle_z(Deg(light_rot_z));
+            rot = Matrix4::from_angle_y(Deg(light_rot_y)) * rot;
             rot * pos
         };
 
-        // let light_position = [1.2f32, 1.0, 2.0];
         unsafe {
             use render_gl::Uniform::{Mat4, Vec3};
 
@@ -232,8 +232,8 @@ fn main() -> anyhow::Result<()> {
             cube.bind();
             {
                 light_shader.set_used();
-                // (0, 0, 0, 1) - it's just the center of the space. After the multiplication it's
-                // the position of the lamp.
+                // (0, 0, 0, 1) - it's just the center of the space. After the multiplication it
+                // has the same position as the lamp has.
                 let pos = light_model_view * Vector4::new(0.0f32, 0., 0., 1.);
                 light_shader
                     .set_uniform("light.position", Vec3(&[pos.x, pos.y, pos.z]))
@@ -251,8 +251,6 @@ fn main() -> anyhow::Result<()> {
             }
 
             {
-                //let model = Matrix4::from_translation(light_position.into());
-                //let model = model * Matrix4::from_scale(0.2);
                 lamp_shader.set_used();
                 set_transformations(
                     &mut lamp_shader,
@@ -265,7 +263,8 @@ fn main() -> anyhow::Result<()> {
             }
 
             {
-                let lamp_shader_other_model = Matrix4::from_translation(cube_position_array[1].into());
+                let lamp_shader_other_model =
+                    Matrix4::from_translation(cube_position_array[1].into());
                 lamp_shader_other.set_used();
                 set_transformations(
                     &mut lamp_shader_other,
@@ -291,15 +290,8 @@ fn main() -> anyhow::Result<()> {
             ground.unbind();
         }
 
-        unsafe {
-            let err = gl.GetError();
-            if err != gl::NO_ERROR {
-                panic!("opengl error: {}", err);
-            }
-        }
-
+        glerr(&gl).context("drawing frame error")?;
         // drawing ends ****************************************************************************
-
         glfw::Context::swap_buffers(&mut window);
     }
     Ok(())

@@ -11,6 +11,7 @@ pub struct Program {
 }
 
 // TODO: use static arrays of proper sizes instead of slices.
+#[derive(Clone, Copy)]
 pub enum Uniform<'a> {
     Mat4(&'a [f32]),
     Vec3(&'a [f32]),
@@ -60,11 +61,7 @@ impl Program {
     }
 
     /// Don't use float64. Perhaps it's worth to consider T: Into<[f32; 3]> | Into<f32; 4>
-    pub fn set_uniform<T: AsRef<str>>(
-        &mut self,
-        key: T,
-        value: Uniform,
-    ) -> anyhow::Result<()> {
+    pub fn set_uniform<T: AsRef<str>>(&mut self, key: T, value: Uniform) -> anyhow::Result<()> {
         let key_c = CString::new(key.as_ref())
             .with_context(|| format!("fail building C-string from {}", key.as_ref()))?;
         unsafe {
@@ -79,6 +76,15 @@ impl Program {
                 Uniform::Float32(x) => self.gl.Uniform1f(loc, x as _),
             }
         }
+        Ok(())
+    }
+
+    pub fn set_uniforms<'a, K, S>(&mut self, args: S) -> anyhow::Result<()> 
+        where
+            K: AsRef<str>,
+            S: AsRef<[(K, Uniform<'a>)]>
+    {
+        args.as_ref().iter().map(|(k, v)| self.set_uniform(k, *v)).collect::<anyhow::Result<_>>()?;
         Ok(())
     }
 

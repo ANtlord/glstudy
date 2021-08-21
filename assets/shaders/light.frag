@@ -18,11 +18,7 @@ in vec3 fragPosition;
 
 out vec4 Color;
 
-// uniform vec3 lightPosition;
-// uniform vec3 lightColor;
-// uniform vec3 objectColor;
 uniform vec3 viewPosition;
-
 uniform Light light;
 uniform Material material;
 
