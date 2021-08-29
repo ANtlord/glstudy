@@ -84,8 +84,7 @@ impl Program {
             K: AsRef<str>,
             S: AsRef<[(K, Uniform<'a>)]>
     {
-        args.as_ref().iter().map(|(k, v)| self.set_uniform(k, *v)).collect::<anyhow::Result<_>>()?;
-        Ok(())
+        args.as_ref().iter().map(|(k, v)| self.set_uniform(k, *v)).collect()
     }
 
     // pub fn attrib_location(&self, name: &str) -> anyhow::Result<gl::types::GLint> {

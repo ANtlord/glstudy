@@ -1,11 +1,10 @@
 use anyhow::Context;
-use cgmath::{Deg, Matrix4, One, Vector4};
+use cgmath::{Deg, Matrix4, Vector4};
 use gl;
 use glfw;
 use glfw::{Action, Key};
 
 use std::ptr;
-use std::time::{Duration, SystemTime};
 
 mod camera;
 mod entities;
@@ -14,9 +13,11 @@ mod movement;
 mod render_gl;
 mod shader_program_container;
 mod texture;
+mod frame_rate;
 
 use movement::{set_transformations, MoveBitMap, Way};
-use shader_program_container::ShaderProgramContainer;
+use shader_program_container::{ShaderProgramBuilder, ShaderProgramContainer};
+use frame_rate::FrameRate;
 
 const WINDOW_WIDTH: i32 = 900;
 const WINDOW_HEIGHT: i32 = 700;
@@ -24,27 +25,6 @@ const WINDOW_ASPECT_RATIO: f32 = WINDOW_WIDTH as f32 / WINDOW_HEIGHT as f32;
 const CAMERA_SENSETIVITY: f32 = 0.1;
 const CAMERA_SPEED: f32 = 5.;
 const CUBE_VERTEX_COUNT: i32 = 36;
-
-struct FrameRate {
-    last: SystemTime,
-    duration: Duration,
-}
-
-impl Default for FrameRate {
-    fn default() -> Self {
-        Self { last: SystemTime::now(), duration: Duration::default() }
-    }
-}
-
-impl FrameRate {
-    fn update(&mut self) -> anyhow::Result<()> {
-        let current = SystemTime::now();
-        self.duration =
-            current.duration_since(self.last).context("fail getting duration between frames")?;
-        self.last = current;
-        Ok(())
-    }
-}
 
 fn move_camera(camera: &mut camera::Camera, speed: f32, directions: &MoveBitMap) {
     if directions.has(Way::Forward) {
@@ -64,19 +44,6 @@ fn move_camera(camera: &mut camera::Camera, speed: f32, directions: &MoveBitMap)
     }
 }
 
-fn set_light_shader_uniforms(light_shader: &mut render_gl::Program) -> anyhow::Result<()> {
-    let light_shader_uniforms = [
-        ("light.ambient", render_gl::Uniform::Vec3(&[0.2, 0.2, 0.2])),
-        ("light.diffuse", render_gl::Uniform::Vec3(&[0.5, 0.5, 0.5])),
-        ("light.specular", render_gl::Uniform::Vec3(&[1.0f32, 1., 1.])),
-        ("material.ambient", render_gl::Uniform::Vec3(&[1.0, 0.5, 0.31])),
-        ("material.diffuse", render_gl::Uniform::Vec3(&[1.0, 0.5, 0.31])),
-        ("material.specular", render_gl::Uniform::Vec3(&[0.5, 0.5, 0.5])),
-        ("material.shininess", render_gl::Uniform::Float32(32.)),
-    ];
-    light_shader.set_uniforms(light_shader_uniforms).context("fail setting initial uniforms")
-}
-
 fn glerr(gl: &gl::Gl) -> anyhow::Result<()> {
     unsafe {
         match gl.GetError() {
@@ -86,10 +53,30 @@ fn glerr(gl: &gl::Gl) -> anyhow::Result<()> {
     }
 }
 
-fn ground_model_transformations() -> Matrix4<f32> {
-    Matrix4::from_translation([0.0f32, -1.0, 0.].into())
-        * Matrix4::from_nonuniform_scale(20.0f32, 0., 20.)
-        * Matrix4::from_angle_x(Deg(90.0f32))
+/// Rotates around Z (rolls)
+struct Roller {
+    position: [f32; 3],
+    rot_y: f32,
+    rot_z: f32,
+}
+
+impl Roller {
+    fn new(position: [f32; 3], rot_y: f32) -> Self {
+        Self {
+            position, rot_y, rot_z: 0.0f32,
+        }
+    }
+
+    fn add_rot_z(&mut self, delta: f32) {
+        self.rot_z += delta;
+    }
+
+    fn model_matrix(&self) -> Matrix4<f32> {
+        let pos = Matrix4::from_translation(self.position.into());
+        let mut rot = Matrix4::from_angle_z(Deg(self.rot_z));
+        rot = Matrix4::from_angle_y(Deg(self.rot_y)) * rot;
+        rot * pos
+    }
 }
 
 fn main() -> anyhow::Result<()> {
@@ -111,31 +98,10 @@ fn main() -> anyhow::Result<()> {
     }
 
     let mut camera = init::standard_camera(WINDOW_ASPECT_RATIO);
-    let model = Matrix4::one();
     // shader begins *******************************************************************************
-    let shader_program_container = ShaderProgramContainer::new(gl.clone());
-    let mut light_shader = {
-        let mut shader_program =
-            shader_program_container.get_light_program().context("fail getting light shader")?;
-        set_transformations(&mut shader_program, model, camera.view(), camera.projection())?;
-        set_light_shader_uniforms(&mut shader_program)?;
-        shader_program
-    };
-
-    let mut lamp_shader =
-        shader_program_container.get_lamp_program().context("fail getting lamp shader")?;
-    let mut lamp_shader_other =
-        shader_program_container.get_lamp_program().context("fail getting lamp shader")?;
-    set_transformations(&mut lamp_shader_other, model, camera.view(), camera.projection())?;
-    let mut texture_shader = shader_program_container
-        .get_vertex_textured_program()
-        .context("fail getting textured shader")?;
-    set_transformations(
-        &mut texture_shader,
-        ground_model_transformations(),
-        camera.view(),
-        camera.projection(),
-    )?;
+    let shader_program_builder = ShaderProgramBuilder::new(gl.clone());
+    let mut shader_container = ShaderProgramContainer::new(&shader_program_builder, &camera)
+        .context("fail creating shader container")?;
 
     let wallimg = image::open("assets/textures/wall.jpg").context("fail loading")?.into_rgb8();
     let _wall_texture = texture::Texture::new(gl.clone(), wallimg.as_raw(), wallimg.dimensions());
@@ -147,9 +113,7 @@ fn main() -> anyhow::Result<()> {
         glerr(&gl).context("fail enabling delth test")?;
     }
 
-    let light_position = [0.0f32, 3., 10.];
-    let light_rot_y = 45.0f32;
-    let mut light_rot_z = 0.0f32;
+    let mut light_roller = Roller::new([0.0f32, 3., 10.], 45.);
     let mut last_cursor_pos = None;
     let mut frame_rate = FrameRate::default();
     let mut camera_move = MoveBitMap::default();
@@ -214,14 +178,8 @@ fn main() -> anyhow::Result<()> {
             gl.Clear(gl::COLOR_BUFFER_BIT | gl::DEPTH_BUFFER_BIT);
         }
 
-        let light_model_view = {
-            let pos = Matrix4::from_translation(light_position.into());
-            light_rot_z += frame_time_secs * 20.;
-            let mut rot = Matrix4::from_angle_z(Deg(light_rot_z));
-            rot = Matrix4::from_angle_y(Deg(light_rot_y)) * rot;
-            rot * pos
-        };
-
+        light_roller.add_rot_z(frame_time_secs * 20.);
+        let light_model_view = light_roller.model_matrix();
         unsafe {
             use render_gl::Uniform::{Mat4, Vec3};
 
@@ -231,29 +189,29 @@ fn main() -> anyhow::Result<()> {
             // Question #1: Is its responsibility to provide way of drawing?
             cube.bind();
             {
-                light_shader.set_used();
+                shader_container.light_shader.set_used();
                 // (0, 0, 0, 1) - it's just the center of the space. After the multiplication it
                 // has the same position as the lamp has.
                 let pos = light_model_view * Vector4::new(0.0f32, 0., 0., 1.);
-                light_shader
+                shader_container.light_shader
                     .set_uniform("light.position", Vec3(&[pos.x, pos.y, pos.z]))
                     .context("fail setting light.position for light_shader")?;
 
                 let view_position = camera.position();
-                light_shader
+                shader_container.light_shader
                     .set_uniform("viewPosition", Vec3(&view_position))
                     .context("fail setting viewPosition for light_shader")?;
 
                 let pos = Matrix4::from_translation(cube_position_array[0].into());
-                set_transformations(&mut light_shader, pos, camera.view(), camera.projection())
+                set_transformations(&mut shader_container.light_shader, pos, camera.view(), camera.projection())
                     .context("fail transforming light_shader")?;
                 gl.DrawArrays(gl::TRIANGLES, 0, CUBE_VERTEX_COUNT);
             }
 
             {
-                lamp_shader.set_used();
+                shader_container.lamp_shader.set_used();
                 set_transformations(
-                    &mut lamp_shader,
+                    &mut shader_container.lamp_shader,
                     light_model_view,
                     camera.view(),
                     camera.projection(),
@@ -265,9 +223,9 @@ fn main() -> anyhow::Result<()> {
             {
                 let lamp_shader_other_model =
                     Matrix4::from_translation(cube_position_array[1].into());
-                lamp_shader_other.set_used();
+                shader_container.lamp_shader_other.set_used();
                 set_transformations(
-                    &mut lamp_shader_other,
+                    &mut shader_container.lamp_shader_other,
                     lamp_shader_other_model,
                     camera.view(),
                     camera.projection(),
@@ -279,11 +237,11 @@ fn main() -> anyhow::Result<()> {
             cube.unbind();
 
             ground.bind();
-            texture_shader.set_used();
-            texture_shader
+            shader_container.texture_shader.set_used();
+            shader_container.texture_shader
                 .set_uniform("view", Mat4(camera.view().as_ref() as &[f32; 16]))
                 .context("fail setting view matrix for texture_shader")?;
-            texture_shader
+            shader_container.texture_shader
                 .set_uniform("projection", Mat4(camera.projection().as_ref() as &[f32; 16]))
                 .context("fail setting projection matrix for texture_shader")?;
             gl.DrawElements(gl::TRIANGLES, 6, gl::UNSIGNED_INT, ptr::null());

@@ -3,7 +3,10 @@ use gl;
 use anyhow::anyhow;
 use anyhow::Context;
 
+use crate::camera::Camera;
+use crate::movement::set_transformations;
 use crate::render_gl;
+use cgmath::{Deg, Matrix4, One};
 
 #[allow(unused)]
 mod shader_paths {
@@ -29,7 +32,7 @@ fn build_shader_program(gl: &gl::Gl, vert: &str, frag: &str) -> anyhow::Result<r
         .map_err(|e| anyhow!("fail building program: {}", e))
 }
 
-pub struct ShaderProgramContainer {
+pub struct ShaderProgramBuilder {
     gl: gl::Gl,
 }
 
@@ -46,7 +49,7 @@ fn make(
 }
 
 #[allow(unused)]
-impl ShaderProgramContainer {
+impl ShaderProgramBuilder {
     pub fn new(gl: gl::Gl) -> Self {
         Self { gl }
     }
@@ -79,5 +82,58 @@ impl ShaderProgramContainer {
     pub fn get_lamp_program(&self) -> anyhow::Result<render_gl::Program> {
         make(&self.gl, None, shader_paths::POINT3D_VERT, shader_paths::POINT_FRAG)
             .context("fail creating lamp program")
+    }
+}
+
+fn set_light_shader_uniforms(light_shader: &mut render_gl::Program) -> anyhow::Result<()> {
+    let light_shader_uniforms = [
+        ("light.ambient", render_gl::Uniform::Vec3(&[0.2, 0.2, 0.2])),
+        ("light.diffuse", render_gl::Uniform::Vec3(&[0.5, 0.5, 0.5])),
+        ("light.specular", render_gl::Uniform::Vec3(&[1.0f32, 1., 1.])),
+        ("material.ambient", render_gl::Uniform::Vec3(&[1.0, 0.5, 0.31])),
+        ("material.diffuse", render_gl::Uniform::Vec3(&[1.0, 0.5, 0.31])),
+        ("material.specular", render_gl::Uniform::Vec3(&[0.5, 0.5, 0.5])),
+        ("material.shininess", render_gl::Uniform::Float32(32.)),
+    ];
+    light_shader.set_uniforms(light_shader_uniforms).context("fail setting initial uniforms")
+}
+
+fn ground_model_transformations() -> Matrix4<f32> {
+    Matrix4::from_translation([0.0f32, -1.0, 0.].into())
+        * Matrix4::from_nonuniform_scale(20.0f32, 0., 20.)
+        * Matrix4::from_angle_x(Deg(90.0f32))
+}
+
+pub struct ShaderProgramContainer {
+    pub light_shader: render_gl::Program,
+    pub lamp_shader: render_gl::Program,
+    pub lamp_shader_other: render_gl::Program,
+    pub texture_shader: render_gl::Program,
+}
+
+impl ShaderProgramContainer {
+    pub fn new(builder: &ShaderProgramBuilder, camera: &Camera) -> anyhow::Result<Self> {
+        let model = Matrix4::one();
+        let light_shader = {
+            let mut shader_program =
+                builder.get_light_program().context("fail getting light shader")?;
+            set_transformations(&mut shader_program, model, camera.view(), camera.projection())?;
+            set_light_shader_uniforms(&mut shader_program)?;
+            shader_program
+        };
+
+        let lamp_shader = builder.get_lamp_program().context("fail getting lamp shader")?;
+        let mut lamp_shader_other =
+            builder.get_lamp_program().context("fail getting other lamp shader")?;
+        set_transformations(&mut lamp_shader_other, model, camera.view(), camera.projection())?;
+        let mut texture_shader =
+            builder.get_vertex_textured_program().context("fail getting textured shader")?;
+        set_transformations(
+            &mut texture_shader,
+            ground_model_transformations(),
+            camera.view(),
+            camera.projection(),
+        )?;
+        Ok(Self { light_shader, lamp_shader, lamp_shader_other, texture_shader })
     }
 }
