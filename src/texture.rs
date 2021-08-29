@@ -50,7 +50,10 @@ impl Texture {
         Self { id, gl }
     }
 
-    fn bind(&self) {
-        unsafe { self.gl.BindTexture(gl::TEXTURE_2D, self.id) }
+    pub fn bind(&self) {
+        unsafe {
+            self.gl.ActiveTexture(gl::TEXTURE0);
+            self.gl.BindTexture(gl::TEXTURE_2D, self.id);
+        }
     }
 }

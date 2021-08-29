@@ -1,7 +1,6 @@
 #version 330 core
 struct Material {
-    vec3 ambient;
-    vec3 diffuse;
+    sampler2D diffuseMap; // GL_TEXTURE0
     vec3 specular;
     float shininess;
 };
@@ -15,6 +14,7 @@ struct Light {
 
 in vec3 normal;
 in vec3 fragPosition;
+in vec2 texCoords;
 
 out vec4 Color;
 
@@ -25,13 +25,13 @@ uniform Material material;
 void main()
 {
     // ambient
-    vec3 ambient = light.ambient * material.ambient;
+    vec3 ambient = light.ambient * vec3(texture(material.diffuseMap, texCoords));
 
     // diffuse
     vec3 fragNorm = normalize(normal);
     vec3 lightDir = normalize(light.position - fragPosition); // from light source to the fragment position?
     float diff = max(dot(fragNorm, lightDir), 0.0); // cos(angle between the vectors);
-    vec3 diffuse = light.diffuse * diff * material.diffuse;
+    vec3 diffuse = light.diffuse * diff * vec3(texture(material.diffuseMap, texCoords));
 
     // specular
     vec3 viewDir = normalize(viewPosition - fragPosition); // from view source to the fragment position?

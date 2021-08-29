@@ -8,16 +8,16 @@ use std::ptr;
 
 mod camera;
 mod entities;
+mod frame_rate;
 mod init;
 mod movement;
 mod render_gl;
 mod shader_program_container;
 mod texture;
-mod frame_rate;
 
+use frame_rate::FrameRate;
 use movement::{set_transformations, MoveBitMap, Way};
 use shader_program_container::{ShaderProgramBuilder, ShaderProgramContainer};
-use frame_rate::FrameRate;
 
 const WINDOW_WIDTH: i32 = 900;
 const WINDOW_HEIGHT: i32 = 700;
@@ -62,9 +62,7 @@ struct Roller {
 
 impl Roller {
     fn new(position: [f32; 3], rot_y: f32) -> Self {
-        Self {
-            position, rot_y, rot_z: 0.0f32,
-        }
+        Self { position, rot_y, rot_z: 0.0f32 }
     }
 
     fn add_rot_z(&mut self, delta: f32) {
@@ -103,8 +101,14 @@ fn main() -> anyhow::Result<()> {
     let mut shader_container = ShaderProgramContainer::new(&shader_program_builder, &camera)
         .context("fail creating shader container")?;
 
-    let wallimg = image::open("assets/textures/wall.jpg").context("fail loading")?.into_rgb8();
-    let _wall_texture = texture::Texture::new(gl.clone(), wallimg.as_raw(), wallimg.dimensions());
+    let wall_img =
+        image::open("assets/textures/wall.jpg").context("fail loading wall.jpg")?.into_rgb8();
+    let wall_texture = texture::Texture::new(gl.clone(), wall_img.as_raw(), wall_img.dimensions());
+    let container2_img = image::open("assets/textures/container2.png")
+        .context("fail loading container2.jpg")?
+        .into_rgb8();
+    let container2_texture =
+        texture::Texture::new(gl.clone(), container2_img.as_raw(), container2_img.dimensions());
     // shader ends ********************************************************************************
 
     let cube_position_array = [[0.0f32, 0.0, 0.0], [2.0, 5.0, -15.0]];
@@ -189,22 +193,30 @@ fn main() -> anyhow::Result<()> {
             // Question #1: Is its responsibility to provide way of drawing?
             cube.bind();
             {
+                container2_texture.bind();
                 shader_container.light_shader.set_used();
                 // (0, 0, 0, 1) - it's just the center of the space. After the multiplication it
                 // has the same position as the lamp has.
                 let pos = light_model_view * Vector4::new(0.0f32, 0., 0., 1.);
-                shader_container.light_shader
+                shader_container
+                    .light_shader
                     .set_uniform("light.position", Vec3(&[pos.x, pos.y, pos.z]))
                     .context("fail setting light.position for light_shader")?;
 
                 let view_position = camera.position();
-                shader_container.light_shader
+                shader_container
+                    .light_shader
                     .set_uniform("viewPosition", Vec3(&view_position))
                     .context("fail setting viewPosition for light_shader")?;
 
                 let pos = Matrix4::from_translation(cube_position_array[0].into());
-                set_transformations(&mut shader_container.light_shader, pos, camera.view(), camera.projection())
-                    .context("fail transforming light_shader")?;
+                set_transformations(
+                    &mut shader_container.light_shader,
+                    pos,
+                    camera.view(),
+                    camera.projection(),
+                )
+                .context("fail transforming light_shader")?;
                 gl.DrawArrays(gl::TRIANGLES, 0, CUBE_VERTEX_COUNT);
             }
 
@@ -236,12 +248,15 @@ fn main() -> anyhow::Result<()> {
 
             cube.unbind();
 
+            wall_texture.bind();
             ground.bind();
             shader_container.texture_shader.set_used();
-            shader_container.texture_shader
+            shader_container
+                .texture_shader
                 .set_uniform("view", Mat4(camera.view().as_ref() as &[f32; 16]))
                 .context("fail setting view matrix for texture_shader")?;
-            shader_container.texture_shader
+            shader_container
+                .texture_shader
                 .set_uniform("projection", Mat4(camera.projection().as_ref() as &[f32; 16]))
                 .context("fail setting projection matrix for texture_shader")?;
             gl.DrawElements(gl::TRIANGLES, 6, gl::UNSIGNED_INT, ptr::null());

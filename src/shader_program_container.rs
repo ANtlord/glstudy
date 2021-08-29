@@ -90,8 +90,7 @@ fn set_light_shader_uniforms(light_shader: &mut render_gl::Program) -> anyhow::R
         ("light.ambient", render_gl::Uniform::Vec3(&[0.2, 0.2, 0.2])),
         ("light.diffuse", render_gl::Uniform::Vec3(&[0.5, 0.5, 0.5])),
         ("light.specular", render_gl::Uniform::Vec3(&[1.0f32, 1., 1.])),
-        ("material.ambient", render_gl::Uniform::Vec3(&[1.0, 0.5, 0.31])),
-        ("material.diffuse", render_gl::Uniform::Vec3(&[1.0, 0.5, 0.31])),
+        ("material.diffuseMap", render_gl::Uniform::Int(0)), // GL_TEXTURE0
         ("material.specular", render_gl::Uniform::Vec3(&[0.5, 0.5, 0.5])),
         ("material.shininess", render_gl::Uniform::Float32(32.)),
     ];

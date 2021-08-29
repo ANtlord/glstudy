@@ -16,6 +16,7 @@ pub enum Uniform<'a> {
     Mat4(&'a [f32]),
     Vec3(&'a [f32]),
     Float32(f32),
+    Int(i32),
 }
 
 impl Program {
@@ -74,6 +75,7 @@ impl Program {
                 Uniform::Mat4(x) => self.gl.UniformMatrix4fv(loc, 1, gl::FALSE, x.as_ptr() as _),
                 Uniform::Vec3(x) => self.gl.Uniform3fv(loc, 1, x.as_ptr() as _),
                 Uniform::Float32(x) => self.gl.Uniform1f(loc, x as _),
+                Uniform::Int(x) => self.gl.Uniform1i(loc, x as _),
             }
         }
         Ok(())
