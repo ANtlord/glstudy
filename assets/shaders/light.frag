@@ -1,7 +1,7 @@
 #version 330 core
 struct Material {
     sampler2D diffuseMap; // GL_TEXTURE0
-    vec3 specular;
+    sampler2D specularMap; // GL_TEXTURE1
     float shininess;
 };
 
@@ -37,7 +37,7 @@ void main()
     vec3 viewDir = normalize(viewPosition - fragPosition); // from view source to the fragment position?
     vec3 reflectDir = reflect(-lightDir, fragNorm);
     float spec = pow(max(dot(viewDir, reflectDir), 0.0), material.shininess);
-    vec3 specular = light.specular * spec * material.specular;
+    vec3 specular = light.specular * spec * vec3(texture(material.specularMap, texCoords));
 
     vec3 result = (ambient + diffuse + specular);
     Color = vec4(result, 1.0);

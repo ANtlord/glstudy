@@ -50,10 +50,25 @@ impl Texture {
         Self { id, gl }
     }
 
-    pub fn bind(&self) {
+    pub fn bind(&self, unit: Unit) {
         unsafe {
-            self.gl.ActiveTexture(gl::TEXTURE0);
+            self.gl.ActiveTexture(unit.gl_value());
             self.gl.BindTexture(gl::TEXTURE_2D, self.id);
+        }
+    }
+}
+
+pub enum Unit {
+    Zero,
+    One,
+}
+
+impl Unit {
+    fn gl_value(&self) -> gl::types::GLenum {
+        use Unit::*;
+        match self {
+            Zero => gl::TEXTURE0,
+            One => gl::TEXTURE1,
         }
     }
 }

@@ -4,6 +4,7 @@ use gl;
 use glfw;
 use glfw::{Action, Key};
 
+use std::path::Path;
 use std::ptr;
 
 mod camera;
@@ -77,6 +78,12 @@ impl Roller {
     }
 }
 
+fn new_texture<T: AsRef<Path>>(gl: &gl::Gl, filepath: &T) -> anyhow::Result<texture::Texture> {
+    let image = image::open(filepath).context("fail loading image")?.into_rgb8();
+    let tex = texture::Texture::new(gl.clone(), image.as_raw(), image.dimensions());
+    Ok(tex)
+}
+
 fn main() -> anyhow::Result<()> {
     // initialize a window and a context ***********************************************************
     let mut glfw = glfw::init(glfw::FAIL_ON_ERRORS).context("fail initiazing GLFW")?;
@@ -101,14 +108,13 @@ fn main() -> anyhow::Result<()> {
     let mut shader_container = ShaderProgramContainer::new(&shader_program_builder, &camera)
         .context("fail creating shader container")?;
 
-    let wall_img =
-        image::open("assets/textures/wall.jpg").context("fail loading wall.jpg")?.into_rgb8();
-    let wall_texture = texture::Texture::new(gl.clone(), wall_img.as_raw(), wall_img.dimensions());
-    let container2_img = image::open("assets/textures/container2.png")
-        .context("fail loading container2.jpg")?
-        .into_rgb8();
-    let container2_texture =
-        texture::Texture::new(gl.clone(), container2_img.as_raw(), container2_img.dimensions());
+    let wall_texture =
+        new_texture(&gl, &"assets/textures/wall.jpg").context("fail loading wall.jpg")?;
+    let container2_texture = new_texture(&gl, &"assets/textures/container2.png")
+        .context("fail loading container2.png")?;
+    let container2_specular_texture =
+        new_texture(&gl, &"assets/textures/lighting_maps_specular_color.png")
+            .context("fail loading container2_specular.png")?;
     // shader ends ********************************************************************************
 
     let cube_position_array = [[0.0f32, 0.0, 0.0], [2.0, 5.0, -15.0]];
@@ -191,9 +197,10 @@ fn main() -> anyhow::Result<()> {
             // Its building determines way to draw it (glDrawArrays or glDrawElements).
             //
             // Question #1: Is its responsibility to provide way of drawing?
+            container2_specular_texture.bind(texture::Unit::One);
+            container2_texture.bind(texture::Unit::Zero);
             cube.bind();
             {
-                container2_texture.bind();
                 shader_container.light_shader.set_used();
                 // (0, 0, 0, 1) - it's just the center of the space. After the multiplication it
                 // has the same position as the lamp has.
@@ -248,7 +255,7 @@ fn main() -> anyhow::Result<()> {
 
             cube.unbind();
 
-            wall_texture.bind();
+            wall_texture.bind(texture::Unit::Zero);
             ground.bind();
             shader_container.texture_shader.set_used();
             shader_container

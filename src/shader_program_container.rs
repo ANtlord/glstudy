@@ -91,7 +91,8 @@ fn set_light_shader_uniforms(light_shader: &mut render_gl::Program) -> anyhow::R
         ("light.diffuse", render_gl::Uniform::Vec3(&[0.5, 0.5, 0.5])),
         ("light.specular", render_gl::Uniform::Vec3(&[1.0f32, 1., 1.])),
         ("material.diffuseMap", render_gl::Uniform::Int(0)), // GL_TEXTURE0
-        ("material.specular", render_gl::Uniform::Vec3(&[0.5, 0.5, 0.5])),
+        ("material.specularMap", render_gl::Uniform::Int(1)), // GL_TEXTURE1
+        // ("material.specular", render_gl::Uniform::Vec3(&[0.5, 0.5, 0.5])),
         ("material.shininess", render_gl::Uniform::Float32(32.)),
     ];
     light_shader.set_uniforms(light_shader_uniforms).context("fail setting initial uniforms")
