@@ -61,6 +61,7 @@ impl Texture {
 pub enum Unit {
     Zero,
     One,
+    Two,
 }
 
 impl Unit {
@@ -69,6 +70,7 @@ impl Unit {
         match self {
             Zero => gl::TEXTURE0,
             One => gl::TEXTURE1,
+            Two => gl::TEXTURE2,
         }
     }
 }

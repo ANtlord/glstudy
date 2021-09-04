@@ -28,7 +28,7 @@ pub fn window(
     window.set_scroll_polling(true);
     if glfw_ctx.supports_raw_motion() {
         window.set_cursor_mode(glfw::CursorMode::Disabled);
-        window.set_raw_mouse_motion(true);
+        // window.set_raw_mouse_motion(true);
     } else {
         println!("mouse raw motion is not supported");
     }

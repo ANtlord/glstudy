@@ -30,17 +30,11 @@ const CUBE_VERTEX_COUNT: i32 = 36;
 fn move_camera(camera: &mut camera::Camera, speed: f32, directions: &MoveBitMap) {
     if directions.has(Way::Forward) {
         camera.go(camera::Way::Forward(speed));
-    }
-
-    if directions.has(Way::Backward) {
+    } else if directions.has(Way::Backward) {
         camera.go(camera::Way::Backward(speed));
-    }
-
-    if directions.has(Way::Left) {
+    } else if directions.has(Way::Left) {
         camera.go(camera::Way::Left(speed));
-    }
-
-    if directions.has(Way::Right) {
+    } else if directions.has(Way::Right) {
         camera.go(camera::Way::Right(speed));
     }
 }
@@ -115,6 +109,9 @@ fn main() -> anyhow::Result<()> {
     let container2_specular_texture =
         new_texture(&gl, &"assets/textures/lighting_maps_specular_color.png")
             .context("fail loading container2_specular.png")?;
+    let matrix_texture =
+        new_texture(&gl, &"assets/textures/matrix.jpg")
+            .context("fail loading matrix.jpg")?;
     // shader ends ********************************************************************************
 
     let cube_position_array = [[0.0f32, 0.0, 0.0], [2.0, 5.0, -15.0]];
@@ -197,8 +194,9 @@ fn main() -> anyhow::Result<()> {
             // Its building determines way to draw it (glDrawArrays or glDrawElements).
             //
             // Question #1: Is its responsibility to provide way of drawing?
-            container2_specular_texture.bind(texture::Unit::One);
             container2_texture.bind(texture::Unit::Zero);
+            container2_specular_texture.bind(texture::Unit::One);
+            matrix_texture.bind(texture::Unit::Two);
             cube.bind();
             {
                 shader_container.light_shader.set_used();

@@ -2,6 +2,7 @@
 struct Material {
     sampler2D diffuseMap; // GL_TEXTURE0
     sampler2D specularMap; // GL_TEXTURE1
+    sampler2D emissionMap; // GL_TEXTURE2
     float shininess;
 };
 
@@ -39,6 +40,8 @@ void main()
     float spec = pow(max(dot(viewDir, reflectDir), 0.0), material.shininess);
     vec3 specular = light.specular * spec * vec3(texture(material.specularMap, texCoords));
 
-    vec3 result = (ambient + diffuse + specular);
+    // emission
+    vec3 emission = vec3(texture(material.emissionMap, texCoords));
+    vec3 result = ambient + diffuse + specular + emission;
     Color = vec4(result, 1.0);
 }
