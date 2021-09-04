@@ -6,7 +6,7 @@ use anyhow::Context;
 use crate::camera::Camera;
 use crate::movement::set_transformations;
 use crate::render_gl;
-use cgmath::{Deg, Matrix4, One};
+use cgmath::{Deg, Matrix4, One, Rad};
 
 #[allow(unused)]
 mod shader_paths {
@@ -95,6 +95,11 @@ fn set_light_shader_uniforms(light_shader: &mut render_gl::Program) -> anyhow::R
         ("material.emissionMap", render_gl::Uniform::Int(2)), // GL_TEXTURE2
         // ("material.specular", render_gl::Uniform::Vec3(&[0.5, 0.5, 0.5])),
         ("material.shininess", render_gl::Uniform::Float32(32.)),
+
+        ("spotLight.position", render_gl::Uniform::Vec3(&[-2., 0., 0.])),
+        ("spotLight.direction", render_gl::Uniform::Vec3(&[1., 0.0, 0.0])),
+        ("spotLight.cutoff", render_gl::Uniform::Float32(0.95)),
+        ("spotLight.ambient", render_gl::Uniform::Vec3(&[1.0, 0.1, 0.1])),
     ];
     light_shader.set_uniforms(light_shader_uniforms).context("fail setting initial uniforms")
 }

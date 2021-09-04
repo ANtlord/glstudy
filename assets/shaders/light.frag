@@ -1,4 +1,13 @@
 #version 330 core
+struct SpotLight {
+    vec3 position;
+    vec3 direction;
+    float cutoff;
+    vec3 ambient;
+    // vec3 diffuse;
+    // vec3 specular;
+};
+
 struct Material {
     sampler2D diffuseMap; // GL_TEXTURE0
     sampler2D specularMap; // GL_TEXTURE1
@@ -6,7 +15,7 @@ struct Material {
     float shininess;
 };
 
-struct Light {
+struct PointLight {
     vec3 position;
     vec3 ambient;
     vec3 diffuse;
@@ -20,13 +29,22 @@ in vec2 texCoords;
 out vec4 Color;
 
 uniform vec3 viewPosition;
-uniform Light light;
+uniform PointLight light;
+uniform SpotLight spotLight;
 uniform Material material;
 
 void main()
 {
+    vec3 spotLightDir = normalize(spotLight.position - fragPosition);
+    float theta = dot(spotLightDir, normalize(-spotLight.direction));
+    vec3 ambientExtra = vec3(0);
+    if (theta > spotLight.cutoff) {
+        ambientExtra = spotLight.ambient;
+    }
+
     // ambient
     vec3 ambient = light.ambient * vec3(texture(material.diffuseMap, texCoords));
+    ambient = ambient + ambientExtra;
 
     // diffuse
     vec3 fragNorm = normalize(normal);
