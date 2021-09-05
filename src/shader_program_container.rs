@@ -97,9 +97,10 @@ fn set_light_shader_uniforms(light_shader: &mut render_gl::Program) -> anyhow::R
         ("material.shininess", render_gl::Uniform::Float32(32.)),
 
         ("spotLight.position", render_gl::Uniform::Vec3(&[-2., 0., 0.])),
-        ("spotLight.direction", render_gl::Uniform::Vec3(&[1., 0.0, 0.0])),
-        ("spotLight.cutoff", render_gl::Uniform::Float32(0.95)),
-        ("spotLight.ambient", render_gl::Uniform::Vec3(&[1.0, 0.1, 0.1])),
+        ("spotLight.direction", render_gl::Uniform::Vec3(&[1., 0.0, -0.1])),
+        ("spotLight.cutoff", render_gl::Uniform::Float32(Rad::from(Deg(12.0f32)).0.cos())),
+        ("spotLight.outerCutoff", render_gl::Uniform::Float32(Rad::from(Deg(15.0f32)).0.cos())),
+        ("spotLight.ambient", render_gl::Uniform::Vec3(&[0.1, 0.1, 0.1])),
     ];
     light_shader.set_uniforms(light_shader_uniforms).context("fail setting initial uniforms")
 }
