@@ -86,6 +86,12 @@ impl ShaderProgramBuilder {
 }
 
 fn set_light_shader_uniforms(light_shader: &mut render_gl::Program) -> anyhow::Result<()> {
+    use std::env;
+    use std::str::FromStr;
+    let value = env::var("VALUE").unwrap_or("0.0".to_owned());
+    let value = value.parse::<f32>().unwrap_or(0.);
+    let pos = [-2., 0., value];
+
     let light_shader_uniforms = [
         ("light.ambient", render_gl::Uniform::Vec3(&[0.2, 0.2, 0.2])),
         ("light.diffuse", render_gl::Uniform::Vec3(&[0.5, 0.5, 0.5])),
@@ -96,11 +102,13 @@ fn set_light_shader_uniforms(light_shader: &mut render_gl::Program) -> anyhow::R
         // ("material.specular", render_gl::Uniform::Vec3(&[0.5, 0.5, 0.5])),
         ("material.shininess", render_gl::Uniform::Float32(32.)),
 
-        ("spotLight.position", render_gl::Uniform::Vec3(&[-2., 0., 0.])),
-        ("spotLight.direction", render_gl::Uniform::Vec3(&[1., 0.0, -0.1])),
+        ("spotLight.position", render_gl::Uniform::Vec3(&pos)),
+        ("spotLight.direction", render_gl::Uniform::Vec3(&[1., 0.0, 0.0])),
         ("spotLight.cutoff", render_gl::Uniform::Float32(Rad::from(Deg(12.0f32)).0.cos())),
         ("spotLight.outerCutoff", render_gl::Uniform::Float32(Rad::from(Deg(15.0f32)).0.cos())),
-        ("spotLight.ambient", render_gl::Uniform::Vec3(&[0.1, 0.1, 0.1])),
+        ("spotLight.ambient", render_gl::Uniform::Vec3(&[0.0, 0.0, 0.0])),
+        ("spotLight.diffuse", render_gl::Uniform::Vec3(&[1., 1., 1.,])),
+        ("spotLight.specular", render_gl::Uniform::Vec3(&[1., 1., 1.,])),
     ];
     light_shader.set_uniforms(light_shader_uniforms).context("fail setting initial uniforms")
 }
