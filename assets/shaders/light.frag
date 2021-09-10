@@ -87,9 +87,10 @@ void main() {
 
     vec3 spotLightDir = normalize(fragPosition - spotLight.position);
     float theta = dot(spotLightDir, normalize(spotLight.direction));
+
     float intensity = getIntensity(theta, spotLight.outerCutoff, spotLight.cutoff);
     vec3 spotlight = computeSpotLight(intensity);
     vec3 pointlight = computePointLight();
-    vec3 result = max(spotlight, pointlight) + emission;
+    vec3 result = spotlight + pointlight + emission;
     Color = vec4(result, 1.0);
 }

@@ -1,5 +1,5 @@
 use anyhow::Context;
-use cgmath::{Deg, Matrix4, Vector4};
+use cgmath::{Deg, Matrix4, Vector3, Vector4, InnerSpace};
 use gl;
 use glfw;
 use glfw::{Action, Key};
@@ -114,7 +114,19 @@ fn main() -> anyhow::Result<()> {
             .context("fail loading matrix.jpg")?;
     // shader ends ********************************************************************************
 
-    let cube_position_array = [[0.0f32, 0.0, 0.0], [2.0, 5.0, -15.0]];
+    let second_lamp_pos = [2.0, 5.0, -15.0];
+    let cube_position_array = [
+        [0.0, 0.0, 0.0],
+        [-1.5, -2.2, -2.5],
+        [-3.8, -2.0, -12.3],
+        [2.4, -0.4, -3.5],
+        [-1.7, 3.0, -7.5],
+        [1.3, -2.0, -2.5],
+        [1.5, 2.0, -2.5],
+        [1.5, 0.2, -1.5],
+        [-1.3, 1.0, -1.5],
+    ];
+
     unsafe {
         gl.Enable(gl::DEPTH_TEST);
         glerr(&gl).context("fail enabling delth test")?;
@@ -198,30 +210,36 @@ fn main() -> anyhow::Result<()> {
             container2_specular_texture.bind(texture::Unit::One);
             matrix_texture.bind(texture::Unit::Two);
             cube.bind();
-            {
-                shader_container.light_shader.set_used();
-                // (0, 0, 0, 1) - it's just the center of the space. After the multiplication it
-                // has the same position as the lamp has.
-                let pos = light_model_view * Vector4::new(0.0f32, 0., 0., 1.);
-                shader_container
-                    .light_shader
-                    .set_uniform("light.position", Vec3(&[pos.x, pos.y, pos.z]))
-                    .context("fail setting light.position for light_shader")?;
+            shader_container.light_shader.set_used();
+            // (0, 0, 0, 1) - it's just the center of the space. After the multiplication it
+            // has the same position as the lamp has.
+            let pos = light_model_view * Vector4::new(0.0f32, 0., 0., 1.);
+            shader_container
+                .light_shader
+                .set_uniform("light.position", Vec3(&[pos.x, pos.y, pos.z]))
+                .context("fail setting light.position for light_shader")?;
 
-                let view_position = camera.position();
-                shader_container
-                    .light_shader
-                    .set_uniform("viewPosition", Vec3(&view_position))
-                    .context("fail setting viewPosition for light_shader")?;
+            let view_position = camera.position();
+            shader_container
+                .light_shader
+                .set_uniform("viewPosition", Vec3(&view_position))
+                .context("fail setting viewPosition for light_shader")?;
 
-                let pos = Matrix4::from_translation(cube_position_array[0].into());
-                set_transformations(
-                    &mut shader_container.light_shader,
-                    pos,
-                    camera.view(),
-                    camera.projection(),
-                )
-                .context("fail transforming light_shader")?;
+            shader_container.light_shader
+                .set_uniform("view", Mat4(&camera.view().as_ref() as &[f32; 16]))
+                .context("fail to set view matrix to vertex_textured_program")?;
+            shader_container.light_shader
+                .set_uniform("projection", Mat4(&camera.projection().as_ref() as &[f32; 16]))
+                .context("fail to set projection matrix to vertex_textured_program")?;
+
+            for (i, cube_pos) in cube_position_array.iter().enumerate() {
+                let pos = Matrix4::from_translation(cube_pos.clone().into());
+                let rot = Matrix4::from_axis_angle(Vector3::new(0.5, 0.5, 0.5f32).normalize(), Deg(20.0f32 * i as f32));
+                let model = pos * rot;
+                shader_container.light_shader
+                    .set_uniform("model", Mat4(&model.as_ref() as &[f32; 16]))
+                    .context("fail to set model matrix to vertex_textured_program")?;
+
                 gl.DrawArrays(gl::TRIANGLES, 0, CUBE_VERTEX_COUNT);
             }
 
@@ -239,7 +257,7 @@ fn main() -> anyhow::Result<()> {
 
             {
                 let lamp_shader_other_model =
-                    Matrix4::from_translation(cube_position_array[1].into());
+                    Matrix4::from_translation(second_lamp_pos.into());
                 shader_container.lamp_shader_other.set_used();
                 set_transformations(
                     &mut shader_container.lamp_shader_other,
