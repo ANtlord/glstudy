@@ -16,6 +16,13 @@ struct Material {
     float shininess;
 };
 
+struct DirectionalLight {
+    vec3 direction;
+    vec3 ambient;
+    vec3 diffuse;
+    vec3 specular;
+};
+
 struct PointLight {
     vec3 position;
     vec3 ambient;
@@ -32,6 +39,7 @@ out vec4 Color;
 uniform vec3 viewPosition;
 uniform PointLight light;
 uniform SpotLight spotLight;
+uniform DirectionalLight directionalLight;
 uniform Material material;
 
 float getIntensity(float theta, float outerCutoff, float cutoff) {
@@ -80,17 +88,37 @@ vec3 computeSpotLight(float intensity) {
     return ambient + diffuse + specular;
 }
 
+vec3 computeDirectionalLight() {
+    vec3 fragNorm = normalize(normal);
+    // ambient
+    vec3 ambient = directionalLight.ambient * vec3(texture(material.diffuseMap, texCoords));
+
+    // diffuse
+    vec3 lightDir = normalize(directionalLight.direction);
+    float diff = max(dot(fragNorm, lightDir), 0.0); // cos(angle between the vectors);
+    vec3 diffuse = directionalLight.diffuse * diff * vec3(texture(material.diffuseMap, texCoords));
+
+    // specular
+    vec3 viewDir = normalize(viewPosition - fragPosition); // from view source to the fragment position?
+    vec3 reflectDir = reflect(-lightDir, fragNorm);
+    float spec = pow(max(dot(viewDir, reflectDir), 0.0), material.shininess);
+    vec3 specular = directionalLight.specular * spec * vec3(texture(material.specularMap, texCoords));
+
+    return ambient + diffuse + specular;
+}
+
 void main() {
-    vec3 emission = vec3(texture(material.emissionMap, texCoords));
+    // vec3 emission = vec3(texture(material.emissionMap, texCoords));
 
     vec3 fragNorm = normalize(normal);
 
     vec3 spotLightDir = normalize(fragPosition - spotLight.position);
     float theta = dot(spotLightDir, normalize(spotLight.direction));
-
     float intensity = getIntensity(theta, spotLight.outerCutoff, spotLight.cutoff);
+
     vec3 spotlight = computeSpotLight(intensity);
     vec3 pointlight = computePointLight();
-    vec3 result = spotlight + pointlight + emission;
+    vec3 directionallight = computeDirectionalLight();
+    vec3 result = spotlight + pointlight + directionallight;// + emission;
     Color = vec4(result, 1.0);
 }

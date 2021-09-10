@@ -93,7 +93,7 @@ fn main() -> anyhow::Result<()> {
     let ground = entities::Shape::parallelogram(gl.clone());
     unsafe {
         gl.Viewport(0, 0, WINDOW_WIDTH, WINDOW_HEIGHT);
-        gl.ClearColor(0.3, 0.3, 0.5, 1.0);
+        gl.ClearColor(0.0, 0.0, 0.0, 1.0);
     }
 
     let mut camera = init::standard_camera(WINDOW_ASPECT_RATIO);
