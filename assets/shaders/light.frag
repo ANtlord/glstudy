@@ -10,9 +10,9 @@ struct SpotLight {
 };
 
 struct Material {
-    sampler2D diffuseMap; // GL_TEXTURE0
-    sampler2D specularMap; // GL_TEXTURE1
-    sampler2D emissionMap; // GL_TEXTURE2
+    sampler2D diffuseMap0; // GL_TEXTURE0
+    sampler2D specularMap0; // GL_TEXTURE1
+    // sampler2D emissionMap; // GL_TEXTURE2
     float shininess;
 };
 
@@ -52,36 +52,36 @@ float getIntensity(float theta, float outerCutoff, float cutoff) {
 vec3 computePointLight() {
     vec3 fragNorm = normalize(normal);
     // ambient
-    vec3 ambient = light.ambient * vec3(texture(material.diffuseMap, texCoords));
+    vec3 ambient = light.ambient * vec3(texture(material.diffuseMap0, texCoords));
 
     // diffuse
     vec3 lightDir = normalize(light.position - fragPosition); // from light source to the fragment position?
     float diff = max(dot(fragNorm, lightDir), 0.0); // cos(angle between the vectors);
-    vec3 diffuse = light.diffuse * diff * vec3(texture(material.diffuseMap, texCoords));
+    vec3 diffuse = light.diffuse * diff * vec3(texture(material.diffuseMap0, texCoords));
 
     // specular
     vec3 viewDir = normalize(viewPosition - fragPosition); // from view source to the fragment position?
     vec3 reflectDir = reflect(-lightDir, fragNorm);
     float spec = pow(max(dot(viewDir, reflectDir), 0.0), material.shininess);
-    vec3 specular = light.specular * spec * vec3(texture(material.specularMap, texCoords));
+    vec3 specular = light.specular * spec * vec3(texture(material.specularMap0, texCoords));
     return ambient + diffuse + specular;
 }
 
 vec3 computeSpotLight(float intensity) {
     vec3 fragNorm = normalize(normal);
     // ambient
-    vec3 ambient = spotLight.ambient * vec3(texture(material.diffuseMap, texCoords));
+    vec3 ambient = spotLight.ambient * vec3(texture(material.diffuseMap0, texCoords));
 
     // diffuse
     vec3 lightDir = normalize(spotLight.position - fragPosition); // from spotLight source to the fragment position?
     float diff = max(dot(fragNorm, lightDir), 0.0); // cos(angle between the vectors);
-    vec3 diffuse = spotLight.diffuse * diff * vec3(texture(material.diffuseMap, texCoords));
+    vec3 diffuse = spotLight.diffuse * diff * vec3(texture(material.diffuseMap0, texCoords));
 
     // specular
     vec3 viewDir = normalize(viewPosition - fragPosition); // from view source to the fragment position?
     vec3 reflectDir = reflect(-lightDir, fragNorm);
     float spec = pow(max(dot(viewDir, reflectDir), 0.0), material.shininess);
-    vec3 specular = spotLight.specular * spec * vec3(texture(material.specularMap, texCoords));
+    vec3 specular = spotLight.specular * spec * vec3(texture(material.specularMap0, texCoords));
 
     specular *= intensity;
     diffuse *= intensity;
@@ -91,18 +91,18 @@ vec3 computeSpotLight(float intensity) {
 vec3 computeDirectionalLight() {
     vec3 fragNorm = normalize(normal);
     // ambient
-    vec3 ambient = directionalLight.ambient * vec3(texture(material.diffuseMap, texCoords));
+    vec3 ambient = directionalLight.ambient * vec3(texture(material.diffuseMap0, texCoords));
 
     // diffuse
     vec3 lightDir = normalize(directionalLight.direction);
     float diff = max(dot(fragNorm, lightDir), 0.0); // cos(angle between the vectors);
-    vec3 diffuse = directionalLight.diffuse * diff * vec3(texture(material.diffuseMap, texCoords));
+    vec3 diffuse = directionalLight.diffuse * diff * vec3(texture(material.diffuseMap0, texCoords));
 
     // specular
     vec3 viewDir = normalize(viewPosition - fragPosition); // from view source to the fragment position?
     vec3 reflectDir = reflect(-lightDir, fragNorm);
     float spec = pow(max(dot(viewDir, reflectDir), 0.0), material.shininess);
-    vec3 specular = directionalLight.specular * spec * vec3(texture(material.specularMap, texCoords));
+    vec3 specular = directionalLight.specular * spec * vec3(texture(material.specularMap0, texCoords));
 
     return ambient + diffuse + specular;
 }

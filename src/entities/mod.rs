@@ -1,7 +1,11 @@
 mod data;
 mod vertex;
+pub mod mesh;
 
+use anyhow::Context;
 use data::{buffer_data, load_render_data_indexed, load_render_data_raw};
+use crate::texture::Texture;
+use crate::domain;
 
 pub struct VertLine {
     pub x: f32,
@@ -105,7 +109,11 @@ pub fn bald_cube(gl: gl::Gl) -> Shape {
 }
 
 #[rustfmt::skip]
-pub fn normalized_cube(gl: gl::Gl) -> Shape {
+pub fn normalized_cube(
+    gl: gl::Gl,
+    diffuse_texture: Texture,
+    specular_texture: Texture,
+) -> anyhow::Result<mesh::Mesh> {
     let data: Vec<vertex::Textured> = vec![
         [-0.5, -0.5, -0.5,  0.0,  0.0, -1.0,  0.0,  0.0].into(),
         [ 0.5, -0.5, -0.5,  0.0,  0.0, -1.0,  0.0,  1.0].into(),
@@ -150,8 +158,15 @@ pub fn normalized_cube(gl: gl::Gl) -> Shape {
         [-0.5,  0.5, -0.5,  0.0,  1.0,  0.0,  0.0,  0.0].into()
     ];
 
-    let opts = ShapeOptions::new(data);
-    opts.build(gl)
+    let builder = mesh::Builder{gl: gl.clone()};
+    builder.build(
+        data,
+        vec![
+            (diffuse_texture, domain::texture::Kind::Diffuse),
+            (specular_texture, domain::texture::Kind::Specular),
+        ],
+        Vec::new(),
+    ).context("fail building a mesh")
 }
 
 struct ShapeOptions<T> {
@@ -172,7 +187,8 @@ impl<T: vertex::VertexAttribPointer> ShapeOptions<T> {
     fn build(self, gl: gl::Gl) -> Shape {
         let (vao, vbo) = match self.indices {
             Some(indices) => unsafe {
-                load_render_data_indexed(&gl, &self.vertices, &indices, gl::STATIC_DRAW)
+                let (vao, vbo, _) = load_render_data_indexed(&gl, &self.vertices, &indices, gl::STATIC_DRAW);
+                (vao, vbo)
             },
             None => unsafe { load_render_data_raw(&gl, &self.vertices, gl::STATIC_DRAW) },
         };
@@ -191,7 +207,7 @@ impl Shape {
         ];
 
         let indices: Vec<u32> = vec![0, 1, 2, 0, 3, 2];
-        let (vao, vbo) = unsafe { load_render_data_indexed(&gl, &data, &indices, gl::STATIC_DRAW) };
+        let (vao, vbo, _) = unsafe { load_render_data_indexed(&gl, &data, &indices, gl::STATIC_DRAW) };
         Self { vao, vbo, gl }
     }
 

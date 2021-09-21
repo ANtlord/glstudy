@@ -47,7 +47,7 @@ pub unsafe fn load_render_data_indexed<T>(
     data: &[T],
     indices: &[u32],
     draw: GLenum,
-) -> (u32, u32)
+) -> (u32, u32, u32)
 where
     T: vertex::VertexAttribPointer,
 {
@@ -66,7 +66,7 @@ where
     T::vertex_attrib_pointer(&gl);
     gl.BindBuffer(gl::ARRAY_BUFFER, 0);
     gl.BindVertexArray(0);
-    (vertex_array_object, vertex_buffer_object)
+    (vertex_array_object, vertex_buffer_object, element_buffer_object)
 }
 
 pub unsafe fn buffer_data<T>(gl: &gl::Gl, target: GLenum, data: &[T], draw: GLenum) {

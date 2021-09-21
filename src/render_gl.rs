@@ -20,6 +20,10 @@ pub enum Uniform<'a> {
 }
 
 impl Program {
+    pub fn id(&self) -> gl::types::GLuint {
+        self.id
+    }
+
     pub fn from_shaders(gl: gl::Gl, shaders: &[Shader]) -> anyhow::Result<Program, String> {
         let program_id = unsafe { gl.CreateProgram() };
         for shader in shaders {
@@ -68,7 +72,11 @@ impl Program {
         unsafe {
             let loc = self.gl.GetUniformLocation(self.id, key_c.as_ptr());
             if loc == -1 {
-                anyhow::bail!("location of uniform `{}` is not found", key.as_ref())
+                anyhow::bail!(
+                    "location of uniform `{}` is not found in shader with id = {}",
+                    key.as_ref(),
+                    self.id
+                )
             }
 
             match value {
@@ -81,10 +89,10 @@ impl Program {
         Ok(())
     }
 
-    pub fn set_uniforms<'a, K, S>(&mut self, args: S) -> anyhow::Result<()> 
-        where
-            K: AsRef<str>,
-            S: AsRef<[(K, Uniform<'a>)]>
+    pub fn set_uniforms<'a, K, S>(&mut self, args: S) -> anyhow::Result<()>
+    where
+        K: AsRef<str>,
+        S: AsRef<[(K, Uniform<'a>)]>,
     {
         args.as_ref().iter().map(|(k, v)| self.set_uniform(k, *v)).collect()
     }

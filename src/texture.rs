@@ -10,6 +10,7 @@
 /// textue_field_name;`
 use gl;
 use std::ffi::c_void;
+use crate::domain::texture;
 
 #[allow(unused)]
 pub struct Texture {
@@ -50,27 +51,16 @@ impl Texture {
         Self { id, gl }
     }
 
-    pub fn bind(&self, unit: Unit) {
-        unsafe {
-            self.gl.ActiveTexture(unit.gl_value());
-            self.gl.BindTexture(gl::TEXTURE_2D, self.id);
-        }
+    pub fn id(&self) -> u32 {
+        self.id
     }
 }
 
-pub enum Unit {
-    Zero,
-    One,
-    Two,
-}
-
-impl Unit {
-    fn gl_value(&self) -> gl::types::GLenum {
-        use Unit::*;
-        match self {
-            Zero => gl::TEXTURE0,
-            One => gl::TEXTURE1,
-            Two => gl::TEXTURE2,
+impl texture::Bind for Texture {
+    fn bind(&self, unit: texture::Unit) {
+        unsafe {
+            self.gl.ActiveTexture(unit.gl_value());
+            self.gl.BindTexture(gl::TEXTURE_2D, self.id);
         }
     }
 }

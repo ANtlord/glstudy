@@ -1,5 +1,5 @@
 use anyhow::Context;
-use cgmath::{Deg, Matrix4, Vector3, Vector4, InnerSpace};
+use cgmath::{Deg, InnerSpace, Matrix4, Vector3, Vector4};
 use gl;
 use glfw;
 use glfw::{Action, Key};
@@ -8,6 +8,7 @@ use std::path::Path;
 use std::ptr;
 
 mod camera;
+mod domain;
 mod entities;
 mod frame_rate;
 mod init;
@@ -15,10 +16,12 @@ mod movement;
 mod render_gl;
 mod shader_program_container;
 mod texture;
+mod util;
 
 use frame_rate::FrameRate;
 use movement::{set_transformations, MoveBitMap, Way};
 use shader_program_container::{ShaderProgramBuilder, ShaderProgramContainer};
+use util::gl as glutil;
 
 const WINDOW_WIDTH: i32 = 900;
 const WINDOW_HEIGHT: i32 = 700;
@@ -36,15 +39,6 @@ fn move_camera(camera: &mut camera::Camera, speed: f32, directions: &MoveBitMap)
         camera.go(camera::Way::Left(speed));
     } else if directions.has(Way::Right) {
         camera.go(camera::Way::Right(speed));
-    }
-}
-
-fn glerr(gl: &gl::Gl) -> anyhow::Result<()> {
-    unsafe {
-        match gl.GetError() {
-            gl::NO_ERROR => Ok(()),
-            err => anyhow::bail!("opengl error: {}", err),
-        }
     }
 }
 
@@ -89,7 +83,6 @@ fn main() -> anyhow::Result<()> {
     // initialization ends *************************************************************************
 
     // load shader data ****************************************************************************
-    let cube = entities::normalized_cube(gl.clone());
     let ground = entities::Shape::parallelogram(gl.clone());
     unsafe {
         gl.Viewport(0, 0, WINDOW_WIDTH, WINDOW_HEIGHT);
@@ -104,14 +97,14 @@ fn main() -> anyhow::Result<()> {
 
     let wall_texture =
         new_texture(&gl, &"assets/textures/wall.jpg").context("fail loading wall.jpg")?;
-    let container2_texture = new_texture(&gl, &"assets/textures/container2.png")
+    let cube_diffuse_texture = new_texture(&gl, &"assets/textures/container2.png")
         .context("fail loading container2.png")?;
-    let container2_specular_texture =
+    let cube_specular_texture =
         new_texture(&gl, &"assets/textures/lighting_maps_specular_color.png")
             .context("fail loading container2_specular.png")?;
-    let matrix_texture =
-        new_texture(&gl, &"assets/textures/matrix.jpg")
-            .context("fail loading matrix.jpg")?;
+
+    let cube = entities::normalized_cube(gl.clone(), cube_diffuse_texture, cube_specular_texture)
+        .context("fail building cube")?;
     // shader ends ********************************************************************************
 
     let second_lamp_pos = [2.0, 5.0, -15.0];
@@ -129,13 +122,16 @@ fn main() -> anyhow::Result<()> {
 
     unsafe {
         gl.Enable(gl::DEPTH_TEST);
-        glerr(&gl).context("fail enabling delth test")?;
+        glutil::get_err(&gl).context("fail enabling delth test")?;
     }
 
     let mut light_roller = Roller::new([0.0f32, 3., 10.], 45.);
     let mut last_cursor_pos = None;
     let mut frame_rate = FrameRate::default();
     let mut camera_move = MoveBitMap::default();
+
+    let cube_draw = entities::mesh::DrawArrays { gl: gl.clone(), mode: gl::TRIANGLES };
+
     while !window.should_close() {
         frame_rate.update().context("fail updating frame rate")?;
         let frame_time_secs = frame_rate.duration.as_secs_f32();
@@ -200,16 +196,14 @@ fn main() -> anyhow::Result<()> {
         light_roller.add_rot_z(frame_time_secs * 20.);
         let light_model_view = light_roller.model_matrix();
         unsafe {
+            use domain::texture::Bind;
             use render_gl::Uniform::{Mat4, Vec3};
 
             // cube is an instance of entities::Shape which data is buffer in the graphics system.
             // Its building determines way to draw it (glDrawArrays or glDrawElements).
             //
             // Question #1: Is its responsibility to provide way of drawing?
-            container2_texture.bind(texture::Unit::Zero);
-            container2_specular_texture.bind(texture::Unit::One);
-            matrix_texture.bind(texture::Unit::Two);
-            cube.bind();
+
             shader_container.light_shader.set_used();
             // (0, 0, 0, 1) - it's just the center of the space. After the multiplication it
             // has the same position as the lamp has.
@@ -225,22 +219,39 @@ fn main() -> anyhow::Result<()> {
                 .set_uniform("viewPosition", Vec3(&view_position))
                 .context("fail setting viewPosition for light_shader")?;
 
-            shader_container.light_shader
+            shader_container
+                .light_shader
                 .set_uniform("view", Mat4(&camera.view().as_ref() as &[f32; 16]))
                 .context("fail to set view matrix to vertex_textured_program")?;
-            shader_container.light_shader
+            shader_container
+                .light_shader
                 .set_uniform("projection", Mat4(&camera.projection().as_ref() as &[f32; 16]))
                 .context("fail to set projection matrix to vertex_textured_program")?;
 
             for (i, cube_pos) in cube_position_array.iter().enumerate() {
                 let pos = Matrix4::from_translation(cube_pos.clone().into());
-                let rot = Matrix4::from_axis_angle(Vector3::new(0.5, 0.5, 0.5f32).normalize(), Deg(20.0f32 * i as f32));
+                let rot = Matrix4::from_axis_angle(
+                    Vector3::new(0.5, 0.5, 0.5f32).normalize(),
+                    Deg(20.0f32 * i as f32),
+                );
                 let model = pos * rot;
-                shader_container.light_shader
+                shader_container
+                    .light_shader
                     .set_uniform("model", Mat4(&model.as_ref() as &[f32; 16]))
                     .context("fail to set model matrix to vertex_textured_program")?;
 
-                gl.DrawArrays(gl::TRIANGLES, 0, CUBE_VERTEX_COUNT);
+                let mut texbind = entities::mesh::TextureBind {
+                    gl: gl.clone(),
+                    shader_program: &mut shader_container.light_shader,
+                };
+
+                // TODO: here one shader is bound and unbound repeatedly. Find out how long it is.
+                cube.draw(&mut texbind, &cube_draw).with_context(|| {
+                    format!(
+                        "fail drawing cube with shader id = {}",
+                        shader_container.light_shader.id()
+                    )
+                })?;
             }
 
             {
@@ -252,12 +263,12 @@ fn main() -> anyhow::Result<()> {
                     camera.projection(),
                 )
                 .context("fail transforming light_shader")?;
-                gl.DrawArrays(gl::TRIANGLES, 0, CUBE_VERTEX_COUNT);
+                cube.draw(&mut entities::mesh::NoTexture, &cube_draw)
+                    .context("fail drawing cube lamp 1")?;
             }
 
             {
-                let lamp_shader_other_model =
-                    Matrix4::from_translation(second_lamp_pos.into());
+                let lamp_shader_other_model = Matrix4::from_translation(second_lamp_pos.into());
                 shader_container.lamp_shader_other.set_used();
                 set_transformations(
                     &mut shader_container.lamp_shader_other,
@@ -266,12 +277,11 @@ fn main() -> anyhow::Result<()> {
                     camera.projection(),
                 )
                 .context("fail transforming light_shader_other")?;
-                gl.DrawArrays(gl::TRIANGLES, 0, CUBE_VERTEX_COUNT);
+                cube.draw(&mut entities::mesh::NoTexture, &cube_draw)
+                    .context("fail drawing cube lamp 2")?;
             }
 
-            cube.unbind();
-
-            wall_texture.bind(texture::Unit::Zero);
+            wall_texture.bind(domain::texture::Unit::zero());
             ground.bind();
             shader_container.texture_shader.set_used();
             shader_container
@@ -286,7 +296,7 @@ fn main() -> anyhow::Result<()> {
             ground.unbind();
         }
 
-        glerr(&gl).context("drawing frame error")?;
+        glutil::get_err(&gl).context("drawing frame error")?;
         // drawing ends ****************************************************************************
         glfw::Context::swap_buffers(&mut window);
     }
