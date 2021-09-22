@@ -6,8 +6,6 @@ use std::ptr;
 use super::load_render_data_indexed;
 use super::vertex::Textured;
 use crate::domain;
-use crate::render_gl::Program;
-use crate::render_gl::Uniform;
 use crate::texture;
 use crate::util::gl as glutil;
 
@@ -36,17 +34,6 @@ pub struct Mesh {
     vao: gl::types::GLuint,
     ebo: gl::types::GLuint,
     gl: gl::Gl,
-}
-
-pub struct NoTexture;
-
-impl domain::mesh::TextureBind for NoTexture {
-    fn texture_bind<'a, B: 'a, I>(&mut self, _: I) -> anyhow::Result<()>
-    where
-        B: domain::texture::Bind,
-        I: Iterator<Item = &'a (B, domain::texture::Kind)> {
-            Ok(())
-    }
 }
 
 impl Mesh {
@@ -101,61 +88,6 @@ impl Builder {
             unsafe { load_render_data_indexed(&self.gl, &vertices, &indices, gl::STATIC_DRAW) };
         glutil::get_err(&self.gl).context("fail binding data")?;
         Ok(Mesh { vertices, textures, indices, vao, vbo, ebo, gl: self.gl.clone() })
-    }
-}
-
-pub struct TextureBind<'a> {
-    pub gl: gl::Gl,
-    pub shader_program: &'a mut Program,
-}
-
-impl<'z> domain::mesh::TextureBind for TextureBind<'z> {
-    /// binds textures from `texture_iter` sequentialy to `shader_program`
-    ///
-    /// The `shader_program` must have 
-    /// uniform Material material;
-    ///
-    /// where
-    /// Material
-    /// struct Material {
-    ///     sampler2D diffuseMap0;
-    ///     sampler2D specularMap0;
-    ///     ...
-    ///     sampler2D diffuseMapN;
-    ///     sampler2D specularMapN;
-    /// };
-    fn texture_bind<'a, B: 'a, I>(&mut self, texture_iter: I) -> anyhow::Result<()>
-    where
-        B: domain::texture::Bind,
-        I: Iterator<Item = &'a (B, domain::texture::Kind)>,
-    {
-        use domain::texture::Unit;
-        let mut diffuse_count = 0;
-        let mut specular_count = 0;
-        texture_iter
-            .enumerate()
-            .map(|(texture_index, (texture, kind))| {
-                texture.bind(Unit::new(texture_index as _).context("fail making texture unit")?);
-                let name = match kind {
-                    domain::texture::Kind::Diffuse => {
-                        diffuse_count += 1;
-                        format!("material.diffuseMap{}", diffuse_count - 1)
-                    }
-
-                    domain::texture::Kind::Specular => {
-                        specular_count += 1;
-                        format!("material.specularMap{}", specular_count - 1)
-                    }
-                };
-
-                self.shader_program
-                    .set_uniform(&name, Uniform::Int(texture_index as _))
-                    .with_context(|| format!("fail setting uniform {}", name))?;
-
-                Ok(())
-            })
-            .collect::<anyhow::Result<()>>()
-            .context("fail processing textures")
     }
 }
 

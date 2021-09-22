@@ -83,7 +83,6 @@ fn main() -> anyhow::Result<()> {
     // initialization ends *************************************************************************
 
     // load shader data ****************************************************************************
-    let ground = entities::Shape::parallelogram(gl.clone());
     unsafe {
         gl.Viewport(0, 0, WINDOW_WIDTH, WINDOW_HEIGHT);
         gl.ClearColor(0.0, 0.0, 0.0, 1.0);
@@ -103,9 +102,13 @@ fn main() -> anyhow::Result<()> {
         new_texture(&gl, &"assets/textures/lighting_maps_specular_color.png")
             .context("fail loading container2_specular.png")?;
 
+    // shader ends ********************************************************************************
+    // some meshes ******************************************
     let cube = entities::normalized_cube(gl.clone(), cube_diffuse_texture, cube_specular_texture)
         .context("fail building cube")?;
-    // shader ends ********************************************************************************
+    let ground =
+        entities::parallelogram(gl.clone(), wall_texture).context("fail building ground")?;
+    // some meshes ******************************************
 
     let second_lamp_pos = [2.0, 5.0, -15.0];
     let cube_position_array = [
@@ -131,6 +134,7 @@ fn main() -> anyhow::Result<()> {
     let mut camera_move = MoveBitMap::default();
 
     let cube_draw = entities::mesh::DrawArrays { gl: gl.clone(), mode: gl::TRIANGLES };
+    let ground_draw = entities::mesh::DrawElements { gl: gl.clone(), mode: gl::TRIANGLES };
 
     while !window.should_close() {
         frame_rate.update().context("fail updating frame rate")?;
@@ -195,105 +199,92 @@ fn main() -> anyhow::Result<()> {
 
         light_roller.add_rot_z(frame_time_secs * 20.);
         let light_model_view = light_roller.model_matrix();
-        unsafe {
-            use domain::texture::Bind;
-            use render_gl::Uniform::{Mat4, Vec3};
+        use domain::shader::{
+            SetUniform, SetUsed,
+            Uniform::{Mat4, Vec3},
+        };
 
-            // cube is an instance of entities::Shape which data is buffer in the graphics system.
-            // Its building determines way to draw it (glDrawArrays or glDrawElements).
-            //
-            // Question #1: Is its responsibility to provide way of drawing?
+        shader_container.light_shader.set_used();
+        // (0, 0, 0, 1) - it's just the center of the space. After the multiplication it
+        // has the same position as the lamp has.
+        let pos = light_model_view * Vector4::new(0.0f32, 0., 0., 1.);
+        shader_container
+            .light_shader
+            .set_uniforms([
+                ("light.position", Vec3(&[pos.x, pos.y, pos.z])),
+                ("viewPosition", Vec3(&camera.position())),
+                ("view", Mat4(&camera.view().as_ref() as &[f32; 16])),
+                ("projection", Mat4(&camera.projection().as_ref() as &[f32; 16])),
+            ])
+            .context("fail changing uniforms for light_shader")?;
 
-            shader_container.light_shader.set_used();
-            // (0, 0, 0, 1) - it's just the center of the space. After the multiplication it
-            // has the same position as the lamp has.
-            let pos = light_model_view * Vector4::new(0.0f32, 0., 0., 1.);
+        for (i, cube_pos) in cube_position_array.iter().enumerate() {
+            let pos = Matrix4::from_translation(cube_pos.clone().into());
+            let rot = Matrix4::from_axis_angle(
+                Vector3::new(0.5, 0.5, 0.5f32).normalize(),
+                Deg(20.0f32 * i as f32),
+            );
+
+            let model = pos * rot;
             shader_container
                 .light_shader
-                .set_uniform("light.position", Vec3(&[pos.x, pos.y, pos.z]))
-                .context("fail setting light.position for light_shader")?;
+                .set_uniform("model", Mat4(&model.as_ref() as &[f32; 16]))
+                .context("fail to set model matrix to vertex_textured_program")?;
 
-            let view_position = camera.position();
-            shader_container
-                .light_shader
-                .set_uniform("viewPosition", Vec3(&view_position))
-                .context("fail setting viewPosition for light_shader")?;
+            let mut texbind = texture::Binder {
+                gl: gl.clone(),
+                shader_program: &mut shader_container.light_shader,
+            };
 
-            shader_container
-                .light_shader
-                .set_uniform("view", Mat4(&camera.view().as_ref() as &[f32; 16]))
-                .context("fail to set view matrix to vertex_textured_program")?;
-            shader_container
-                .light_shader
-                .set_uniform("projection", Mat4(&camera.projection().as_ref() as &[f32; 16]))
-                .context("fail to set projection matrix to vertex_textured_program")?;
+            // TODO: here one shader is bound and unbound repeatedly. Find out how long it is.
+            cube.draw(&mut texbind, &cube_draw).with_context(|| {
+                format!("fail drawing cube with shader id = {}", shader_container.light_shader.id())
+            })?;
+        }
 
-            for (i, cube_pos) in cube_position_array.iter().enumerate() {
-                let pos = Matrix4::from_translation(cube_pos.clone().into());
-                let rot = Matrix4::from_axis_angle(
-                    Vector3::new(0.5, 0.5, 0.5f32).normalize(),
-                    Deg(20.0f32 * i as f32),
-                );
-                let model = pos * rot;
-                shader_container
-                    .light_shader
-                    .set_uniform("model", Mat4(&model.as_ref() as &[f32; 16]))
-                    .context("fail to set model matrix to vertex_textured_program")?;
+        {
+            shader_container.lamp_shader.set_used();
+            set_transformations(
+                &mut shader_container.lamp_shader,
+                light_model_view,
+                camera.view(),
+                camera.projection(),
+            )
+            .context("fail transforming light_shader")?;
+            cube.draw(&mut domain::mesh::NoTexture, &cube_draw)
+                .context("fail drawing cube lamp 1")?;
+        }
 
-                let mut texbind = entities::mesh::TextureBind {
-                    gl: gl.clone(),
-                    shader_program: &mut shader_container.light_shader,
-                };
+        {
+            let lamp_shader_other_model = Matrix4::from_translation(second_lamp_pos.into());
+            shader_container.lamp_shader_other.set_used();
+            set_transformations(
+                &mut shader_container.lamp_shader_other,
+                lamp_shader_other_model,
+                camera.view(),
+                camera.projection(),
+            )
+            .context("fail transforming light_shader_other")?;
+            cube.draw(&mut domain::mesh::NoTexture, &cube_draw)
+                .context("fail drawing cube lamp 2")?;
+        }
 
-                // TODO: here one shader is bound and unbound repeatedly. Find out how long it is.
-                cube.draw(&mut texbind, &cube_draw).with_context(|| {
-                    format!(
-                        "fail drawing cube with shader id = {}",
-                        shader_container.light_shader.id()
-                    )
-                })?;
-            }
-
-            {
-                shader_container.lamp_shader.set_used();
-                set_transformations(
-                    &mut shader_container.lamp_shader,
-                    light_model_view,
-                    camera.view(),
-                    camera.projection(),
-                )
-                .context("fail transforming light_shader")?;
-                cube.draw(&mut entities::mesh::NoTexture, &cube_draw)
-                    .context("fail drawing cube lamp 1")?;
-            }
-
-            {
-                let lamp_shader_other_model = Matrix4::from_translation(second_lamp_pos.into());
-                shader_container.lamp_shader_other.set_used();
-                set_transformations(
-                    &mut shader_container.lamp_shader_other,
-                    lamp_shader_other_model,
-                    camera.view(),
-                    camera.projection(),
-                )
-                .context("fail transforming light_shader_other")?;
-                cube.draw(&mut entities::mesh::NoTexture, &cube_draw)
-                    .context("fail drawing cube lamp 2")?;
-            }
-
-            wall_texture.bind(domain::texture::Unit::zero());
-            ground.bind();
+        {
             shader_container.texture_shader.set_used();
             shader_container
                 .texture_shader
-                .set_uniform("view", Mat4(camera.view().as_ref() as &[f32; 16]))
-                .context("fail setting view matrix for texture_shader")?;
-            shader_container
-                .texture_shader
-                .set_uniform("projection", Mat4(camera.projection().as_ref() as &[f32; 16]))
-                .context("fail setting projection matrix for texture_shader")?;
-            gl.DrawElements(gl::TRIANGLES, 6, gl::UNSIGNED_INT, ptr::null());
-            ground.unbind();
+                .set_uniforms([
+                    ("projection", Mat4(camera.projection().as_ref() as &[f32; 16])),
+                    ("view", Mat4(camera.view().as_ref() as &[f32; 16])),
+                ])
+                .context("fail changing unifroms of texture_shader")?;
+
+            let mut texbind = texture::Binder {
+                gl: gl.clone(),
+                shader_program: &mut shader_container.texture_shader,
+            };
+
+            ground.draw(&mut texbind, &ground_draw).context("fail drawing ground")?;
         }
 
         glutil::get_err(&gl).context("drawing frame error")?;

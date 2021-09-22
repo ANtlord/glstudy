@@ -2,11 +2,15 @@
 in vec3 fragColor;
 in vec2 texturePixel;
 
-uniform sampler2D rubbish;
+struct Material {
+    sampler2D diffuseMap0; // GL_TEXTURE0
+};
+
+uniform Material material;
 
 out vec4 Color;
 
 void main()
 {
-    Color = texture(rubbish, texturePixel);
+    Color = texture(material.diffuseMap0, texturePixel);
 }

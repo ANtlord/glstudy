@@ -11,6 +11,18 @@ pub mod mesh {
             I: Iterator<Item = &'a (B, texture::Kind)>;
     }
 
+    pub struct NoTexture;
+
+    impl TextureBind for NoTexture {
+        fn texture_bind<'a, B: 'a, I>(&mut self, _: I) -> anyhow::Result<()>
+        where
+            B: texture::Bind,
+            I: Iterator<Item = &'a (B, texture::Kind)> {
+                Ok(())
+        }
+    }
+
+
     pub trait Draw {
         fn draw(&self, _: &impl super::vdata::BindUnbind, _: &impl Mesh);
     }
@@ -56,5 +68,24 @@ pub mod vdata {
     pub trait BindUnbind {
         fn bind(&self);
         fn unbind(&self);
+    }
+}
+
+pub mod shader {
+    // TODO: use static arrays of proper sizes instead of slices.
+    #[derive(Clone, Copy)]
+    pub enum Uniform<'a> {
+        Mat4(&'a [f32]), // 16
+        Vec3(&'a [f32]), // 3
+        Float32(f32),
+        Int(i32),
+    }
+
+    pub trait SetUniform {
+        fn set_uniform<T: AsRef<str>>(&mut self, key: T, value: Uniform) -> anyhow::Result<()>;
+    }
+
+    pub trait SetUsed {
+        fn set_used(&self);
     }
 }

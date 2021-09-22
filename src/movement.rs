@@ -1,7 +1,8 @@
 use anyhow::Context;
 use cgmath::Matrix4;
 
-use crate::render_gl;
+use crate::domain::shader;
+use crate::domain::shader::Uniform::Mat4;
 
 /// 0000
 /// ^^^^
@@ -53,13 +54,12 @@ impl Default for MoveBitMap {
     }
 }
 
-pub fn set_transformations(
-    program: &mut render_gl::Program,
+pub fn set_transformations<P: shader::SetUniform + shader::SetUsed>(
+    program: &mut P,
     model: Matrix4<f32>,
     view: Matrix4<f32>,
     projection: Matrix4<f32>,
 ) -> anyhow::Result<()> {
-    use render_gl::Uniform::Mat4;
     program.set_used();
     program
         .set_uniform("model", Mat4(&model.as_ref() as &[f32; 16]))

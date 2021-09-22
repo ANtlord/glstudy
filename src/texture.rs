@@ -10,7 +10,8 @@
 /// textue_field_name;`
 use gl;
 use std::ffi::c_void;
-use crate::domain::texture;
+use crate::domain;
+use anyhow::Context;
 
 #[allow(unused)]
 pub struct Texture {
@@ -56,11 +57,66 @@ impl Texture {
     }
 }
 
-impl texture::Bind for Texture {
-    fn bind(&self, unit: texture::Unit) {
+impl domain::texture::Bind for Texture {
+    fn bind(&self, unit: domain::texture::Unit) {
         unsafe {
             self.gl.ActiveTexture(unit.gl_value());
             self.gl.BindTexture(gl::TEXTURE_2D, self.id);
         }
+    }
+}
+
+pub struct Binder<'a, S> {
+    pub gl: gl::Gl,
+    pub shader_program: &'a mut S,
+}
+
+impl<'z, S: domain::shader::SetUniform> domain::mesh::TextureBind for Binder<'z, S> {
+    /// binds textures from `texture_iter` sequentialy to `shader_program`
+    ///
+    /// The `shader_program` must have
+    /// uniform Material material;
+    ///
+    /// where
+    /// Material
+    /// struct Material {
+    ///     sampler2D diffuseMap0;
+    ///     sampler2D specularMap0;
+    ///     ...
+    ///     sampler2D diffuseMapN;
+    ///     sampler2D specularMapN;
+    /// };
+    fn texture_bind<'a, B: 'a, I>(&mut self, texture_iter: I) -> anyhow::Result<()>
+    where
+        B: domain::texture::Bind,
+        I: Iterator<Item = &'a (B, domain::texture::Kind)>,
+    {
+        use domain::texture::Unit;
+        let mut diffuse_count = 0;
+        let mut specular_count = 0;
+        texture_iter
+            .enumerate()
+            .map(|(texture_index, (texture, kind))| {
+                texture.bind(Unit::new(texture_index as _).context("fail making texture unit")?);
+                let name = match kind {
+                    domain::texture::Kind::Diffuse => {
+                        diffuse_count += 1;
+                        format!("material.diffuseMap{}", diffuse_count - 1)
+                    }
+
+                    domain::texture::Kind::Specular => {
+                        specular_count += 1;
+                        format!("material.specularMap{}", specular_count - 1)
+                    }
+                };
+
+                self.shader_program
+                    .set_uniform(&name, domain::shader::Uniform::Int(texture_index as _))
+                    .with_context(|| format!("fail setting uniform {}", name))?;
+
+                Ok(())
+            })
+            .collect::<anyhow::Result<()>>()
+            .context("fail processing textures")
     }
 }

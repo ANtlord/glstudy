@@ -169,6 +169,22 @@ pub fn normalized_cube(
     ).context("fail building a mesh")
 }
 
+pub fn parallelogram(gl: gl::Gl, diffuse_texture: Texture) -> anyhow::Result<mesh::Mesh> {
+    let data: Vec<vertex::Textured> = vec![
+        [-0.5, -0.5, 0., 0., 0., 0., 0.0, 0.0].into(),
+        [-0.5, 0.5, 0., 0., 0., 0., 0.0, 2.0].into(),
+        [0.5, 0.5, 0., 0., 0., 0., 2.0, 2.0].into(),
+        [0.5, -0.5, 0., 0., 0., 0., 2.0, 0.0].into(),
+    ];
+
+    let builder = mesh::Builder{gl: gl.clone()};
+    builder.build(
+        data,
+        vec![(diffuse_texture, domain::texture::Kind::Diffuse)],
+        vec![0, 1, 2, 0, 3, 2],
+    ).context("fail building a mesh")
+}
+
 struct ShapeOptions<T> {
     vertices: Vec<T>,
     indices: Option<Vec<u32>>,
@@ -198,19 +214,6 @@ impl<T: vertex::VertexAttribPointer> ShapeOptions<T> {
 }
 
 impl Shape {
-    pub fn parallelogram(gl: gl::Gl) -> Self {
-        let data: Vec<vertex::Textured> = vec![
-            [-0.5, -0.5, 0., 0., 0., 0., 0.0, 0.0].into(),
-            [-0.5, 0.5, 0., 0., 0., 0., 0.0, 2.0].into(),
-            [0.5, 0.5, 0., 0., 0., 0., 2.0, 2.0].into(),
-            [0.5, -0.5, 0., 0., 0., 0., 2.0, 0.0].into(),
-        ];
-
-        let indices: Vec<u32> = vec![0, 1, 2, 0, 3, 2];
-        let (vao, vbo, _) = unsafe { load_render_data_indexed(&gl, &data, &indices, gl::STATIC_DRAW) };
-        Self { vao, vbo, gl }
-    }
-
     pub fn triangle(gl: gl::Gl) -> Self {
         let vertices: Vec<vertex::Textured> = vec![
             [-0.5, -0.5, 0., 0., 0., 0., 0., 0.].into(),

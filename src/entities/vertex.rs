@@ -85,7 +85,7 @@ impl VertexAttribPointer for Chromatic {
 #[repr(C)]
 pub struct Textured {
     position: [f32; 3],
-    color: [f32; 3],
+    normal: [f32; 3],
     texture_position: [f32; 2],
 }
 
@@ -93,7 +93,7 @@ impl From<[f32; 8]> for Textured {
     fn from(data: [f32; 8]) -> Self {
         Self {
             position: [data[0], data[1], data[2]],
-            color: [data[3], data[4], data[5]],
+            normal: [data[3], data[4], data[5]],
             texture_position: [data[6], data[7]],
         }
     }

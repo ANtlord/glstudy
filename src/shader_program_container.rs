@@ -7,6 +7,7 @@ use crate::camera::Camera;
 use crate::movement::set_transformations;
 use crate::render_gl;
 use cgmath::{Deg, Matrix4, One, Rad};
+use crate::domain;
 
 #[allow(unused)]
 mod shader_paths {
@@ -93,27 +94,27 @@ fn set_light_shader_uniforms(light_shader: &mut render_gl::Program) -> anyhow::R
     let pos = [-2., 0., value];
 
     let light_shader_uniforms = [
-        ("light.ambient", render_gl::Uniform::Vec3(&[0.0, 0.0, 0.0])),
-        ("light.diffuse", render_gl::Uniform::Vec3(&[0.2, 0.2, 0.9])),
-        ("light.specular", render_gl::Uniform::Vec3(&[1.0f32, 1., 1.])),
-        // ("material.diffuseMap", render_gl::Uniform::Int(0)), // GL_TEXTURE0
-        // ("material.specularMap", render_gl::Uniform::Int(1)), // GL_TEXTURE1
-        // ("material.emissionMap", render_gl::Uniform::Int(2)), // GL_TEXTURE2
-        // ("material.specular", render_gl::Uniform::Vec3(&[0.5, 0.5, 0.5])),
-        ("material.shininess", render_gl::Uniform::Float32(32.)),
+        ("light.ambient", domain::shader::Uniform::Vec3(&[0.0, 0.0, 0.0])),
+        ("light.diffuse", domain::shader::Uniform::Vec3(&[0.2, 0.2, 0.9])),
+        ("light.specular", domain::shader::Uniform::Vec3(&[1.0f32, 1., 1.])),
+        // ("material.diffuseMap", domain::shader::Uniform::Int(0)), // GL_TEXTURE0
+        // ("material.specularMap", domain::shader::Uniform::Int(1)), // GL_TEXTURE1
+        // ("material.emissionMap", domain::shader::Uniform::Int(2)), // GL_TEXTURE2
+        // ("material.specular", domain::shader::Uniform::Vec3(&[0.5, 0.5, 0.5])),
+        ("material.shininess", domain::shader::Uniform::Float32(32.)),
 
-        ("spotLight.position", render_gl::Uniform::Vec3(&pos)),
-        ("spotLight.direction", render_gl::Uniform::Vec3(&[1., 0.0, 0.0])),
-        ("spotLight.cutoff", render_gl::Uniform::Float32(Rad::from(Deg(12.0f32)).0.cos())),
-        ("spotLight.outerCutoff", render_gl::Uniform::Float32(Rad::from(Deg(15.0f32)).0.cos())),
-        ("spotLight.ambient", render_gl::Uniform::Vec3(&[0.0, 0.0, 0.0])),
-        ("spotLight.diffuse", render_gl::Uniform::Vec3(&[1., 1., 1.,])),
-        ("spotLight.specular", render_gl::Uniform::Vec3(&[1., 1., 1.,])),
+        ("spotLight.position", domain::shader::Uniform::Vec3(&pos)),
+        ("spotLight.direction", domain::shader::Uniform::Vec3(&[1., 0.0, 0.0])),
+        ("spotLight.cutoff", domain::shader::Uniform::Float32(Rad::from(Deg(12.0f32)).0.cos())),
+        ("spotLight.outerCutoff", domain::shader::Uniform::Float32(Rad::from(Deg(15.0f32)).0.cos())),
+        ("spotLight.ambient", domain::shader::Uniform::Vec3(&[0.0, 0.0, 0.0])),
+        ("spotLight.diffuse", domain::shader::Uniform::Vec3(&[1., 1., 1.,])),
+        ("spotLight.specular", domain::shader::Uniform::Vec3(&[1., 1., 1.,])),
 
-        ("directionalLight.direction", render_gl::Uniform::Vec3(&[0.0, 1.0, -1.0])),
-        ("directionalLight.ambient", render_gl::Uniform::Vec3(&[0.1, 0.1, 0.5])),
-        ("directionalLight.diffuse", render_gl::Uniform::Vec3(&[0.0, 0.0, 0.0])),
-        ("directionalLight.specular", render_gl::Uniform::Vec3(&[1.0f32, 1., 1.])),
+        ("directionalLight.direction", domain::shader::Uniform::Vec3(&[0.0, 1.0, -1.0])),
+        ("directionalLight.ambient", domain::shader::Uniform::Vec3(&[0.1, 0.1, 0.5])),
+        ("directionalLight.diffuse", domain::shader::Uniform::Vec3(&[0.0, 0.0, 0.0])),
+        ("directionalLight.specular", domain::shader::Uniform::Vec3(&[1.0f32, 1., 1.])),
     ];
     light_shader.set_uniforms(light_shader_uniforms).context("fail setting initial uniforms")
 }

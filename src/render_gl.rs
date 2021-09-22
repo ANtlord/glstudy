@@ -5,18 +5,11 @@ use std::ffi::{CStr, CString};
 use std::fs::File;
 use std::io::Read;
 
+use crate::domain::shader;
+
 pub struct Program {
     gl: gl::Gl,
     id: gl::types::GLuint,
-}
-
-// TODO: use static arrays of proper sizes instead of slices.
-#[derive(Clone, Copy)]
-pub enum Uniform<'a> {
-    Mat4(&'a [f32]),
-    Vec3(&'a [f32]),
-    Float32(f32),
-    Int(i32),
 }
 
 impl Program {
@@ -65,36 +58,12 @@ impl Program {
         Ok(Program { gl, id: program_id })
     }
 
-    /// Don't use float64. Perhaps it's worth to consider T: Into<[f32; 3]> | Into<f32; 4>
-    pub fn set_uniform<T: AsRef<str>>(&mut self, key: T, value: Uniform) -> anyhow::Result<()> {
-        let key_c = CString::new(key.as_ref())
-            .with_context(|| format!("fail building C-string from {}", key.as_ref()))?;
-        unsafe {
-            let loc = self.gl.GetUniformLocation(self.id, key_c.as_ptr());
-            if loc == -1 {
-                anyhow::bail!(
-                    "location of uniform `{}` is not found in shader with id = {}",
-                    key.as_ref(),
-                    self.id
-                )
-            }
-
-            match value {
-                Uniform::Mat4(x) => self.gl.UniformMatrix4fv(loc, 1, gl::FALSE, x.as_ptr() as _),
-                Uniform::Vec3(x) => self.gl.Uniform3fv(loc, 1, x.as_ptr() as _),
-                Uniform::Float32(x) => self.gl.Uniform1f(loc, x as _),
-                Uniform::Int(x) => self.gl.Uniform1i(loc, x as _),
-            }
-        }
-        Ok(())
-    }
-
     pub fn set_uniforms<'a, K, S>(&mut self, args: S) -> anyhow::Result<()>
     where
         K: AsRef<str>,
-        S: AsRef<[(K, Uniform<'a>)]>,
+        S: AsRef<[(K, shader::Uniform<'a>)]>,
     {
-        args.as_ref().iter().map(|(k, v)| self.set_uniform(k, *v)).collect()
+        args.as_ref().iter().map(|(k, v)| shader::SetUniform::set_uniform(self, k, *v)).collect()
     }
 
     // pub fn attrib_location(&self, name: &str) -> anyhow::Result<gl::types::GLint> {
@@ -126,10 +95,55 @@ impl Program {
     //     self.id
     // }
 
-    pub fn set_used(&self) {
+    fn assert_is_used(&self) -> anyhow::Result<()> {
+        let prog = unsafe {
+            let mut prog = 0;
+            self.gl.GetIntegerv(gl::CURRENT_PROGRAM, &mut prog);
+            prog as gl::types::GLuint
+        };
+
+        if self.id != prog {
+            Err(anyhow::anyhow!("shader program is not active"))
+        } else {
+            Ok(())
+        }
+    }
+}
+
+impl shader::SetUsed for Program {
+    fn set_used(&self) {
         unsafe {
             self.gl.UseProgram(self.id);
         }
+    }
+}
+
+
+impl shader::SetUniform for Program {
+    /// Don't use float64. Perhaps it's worth to consider T: Into<[f32; 3]> | Into<f32; 4>
+    fn set_uniform<T: AsRef<str>>(&mut self, key: T, value: shader::Uniform) -> anyhow::Result<()> {
+        self.assert_is_used()?;
+        let key_c = CString::new(key.as_ref())
+            .with_context(|| format!("fail building C-string from {}", key.as_ref()))?;
+        unsafe {
+            let loc = self.gl.GetUniformLocation(self.id, key_c.as_ptr());
+            if loc == -1 {
+                anyhow::bail!(
+                    "location of uniform `{}` is not found in shader with id = {}",
+                    key.as_ref(),
+                    self.id
+                )
+            }
+
+            use shader::Uniform;
+            match value {
+                Uniform::Mat4(x) => self.gl.UniformMatrix4fv(loc, 1, gl::FALSE, x.as_ptr() as _),
+                Uniform::Vec3(x) => self.gl.Uniform3fv(loc, 1, x.as_ptr() as _),
+                Uniform::Float32(x) => self.gl.Uniform1f(loc, x as _),
+                Uniform::Int(x) => self.gl.Uniform1i(loc, x as _),
+            }
+        }
+        Ok(())
     }
 }
 
