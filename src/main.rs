@@ -90,9 +90,11 @@ fn main() -> anyhow::Result<()> {
 
     let mut camera = init::standard_camera(WINDOW_ASPECT_RATIO);
     // shader begins *******************************************************************************
+    let mut shader_control_master = render_gl::ProgramCtlMaster;
     let shader_program_builder = ShaderProgramBuilder::new(gl.clone());
-    let mut shader_container = ShaderProgramContainer::new(&shader_program_builder, &camera)
-        .context("fail creating shader container")?;
+    let mut shader_container =
+        ShaderProgramContainer::new(&shader_program_builder, &camera, &mut shader_control_master)
+            .context("fail creating shader container")?;
 
     let wall_texture =
         new_texture(&gl, &"assets/textures/wall.jpg").context("fail loading wall.jpg")?;
@@ -204,19 +206,22 @@ fn main() -> anyhow::Result<()> {
             Uniform::{Mat4, Vec3},
         };
 
-        shader_container.light_shader.set_used();
+        let light_shader_id = shader_container.light_shader.id();
+        let mut light_shader_ctl =
+            shader_control_master.set_used(&mut shader_container.light_shader);
         // (0, 0, 0, 1) - it's just the center of the space. After the multiplication it
         // has the same position as the lamp has.
         let pos = light_model_view * Vector4::new(0.0f32, 0., 0., 1.);
-        shader_container
-            .light_shader
-            .set_uniforms([
+        domain::shader::set_uniforms(
+            &mut light_shader_ctl,
+            [
                 ("light.position", Vec3(&[pos.x, pos.y, pos.z])),
                 ("viewPosition", Vec3(&camera.position())),
                 ("view", Mat4(&camera.view().as_ref() as &[f32; 16])),
                 ("projection", Mat4(&camera.projection().as_ref() as &[f32; 16])),
-            ])
-            .context("fail changing uniforms for light_shader")?;
+            ],
+        )
+        .context("fail changing uniforms for light_shader")?;
 
         for (i, cube_pos) in cube_position_array.iter().enumerate() {
             let pos = Matrix4::from_translation(cube_pos.clone().into());
@@ -226,26 +231,24 @@ fn main() -> anyhow::Result<()> {
             );
 
             let model = pos * rot;
-            shader_container
-                .light_shader
+            light_shader_ctl
                 .set_uniform("model", Mat4(&model.as_ref() as &[f32; 16]))
                 .context("fail to set model matrix to vertex_textured_program")?;
 
-            let mut texbind = texture::Binder {
-                gl: gl.clone(),
-                shader_program: &mut shader_container.light_shader,
-            };
+            let mut texbind =
+                texture::Binder { gl: gl.clone(), shader_program: &mut light_shader_ctl };
 
             // TODO: here one shader is bound and unbound repeatedly. Find out how long it is.
             cube.draw(&mut texbind, &cube_draw).with_context(|| {
-                format!("fail drawing cube with shader id = {}", shader_container.light_shader.id())
+                format!("fail drawing cube with shader id = {}", light_shader_id)
             })?;
         }
 
         {
-            shader_container.lamp_shader.set_used();
+            let mut lamp_shader_ctl =
+                shader_control_master.set_used(&mut shader_container.lamp_shader);
             set_transformations(
-                &mut shader_container.lamp_shader,
+                &mut lamp_shader_ctl,
                 light_model_view,
                 camera.view(),
                 camera.projection(),
@@ -256,10 +259,11 @@ fn main() -> anyhow::Result<()> {
         }
 
         {
+            let mut lamp_shader_other_ctl =
+                shader_control_master.set_used(&mut shader_container.lamp_shader_other);
             let lamp_shader_other_model = Matrix4::from_translation(second_lamp_pos.into());
-            shader_container.lamp_shader_other.set_used();
             set_transformations(
-                &mut shader_container.lamp_shader_other,
+                &mut lamp_shader_other_ctl,
                 lamp_shader_other_model,
                 camera.view(),
                 camera.projection(),
@@ -270,19 +274,19 @@ fn main() -> anyhow::Result<()> {
         }
 
         {
-            shader_container.texture_shader.set_used();
-            shader_container
-                .texture_shader
-                .set_uniforms([
+            let mut texture_shader_ctl =
+                shader_control_master.set_used(&mut shader_container.texture_shader);
+            domain::shader::set_uniforms(
+                &mut texture_shader_ctl,
+                [
                     ("projection", Mat4(camera.projection().as_ref() as &[f32; 16])),
                     ("view", Mat4(camera.view().as_ref() as &[f32; 16])),
-                ])
-                .context("fail changing unifroms of texture_shader")?;
+                ],
+            )
+            .context("fail changing unifroms of texture_shader")?;
 
-            let mut texbind = texture::Binder {
-                gl: gl.clone(),
-                shader_program: &mut shader_container.texture_shader,
-            };
+            let mut texbind =
+                texture::Binder { gl: gl.clone(), shader_program: &mut texture_shader_ctl };
 
             ground.draw(&mut texbind, &ground_draw).context("fail drawing ground")?;
         }

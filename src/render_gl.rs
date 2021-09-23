@@ -1,9 +1,11 @@
 use anyhow::Context;
 use gl;
-use std;
+
 use std::ffi::{CStr, CString};
 use std::fs::File;
 use std::io::Read;
+use std::marker::PhantomData;
+use std::ptr;
 
 use crate::domain::shader;
 
@@ -41,7 +43,7 @@ impl Program {
                 gl.GetProgramInfoLog(
                     program_id,
                     len,
-                    std::ptr::null_mut(),
+                    ptr::null_mut(),
                     error.as_ptr() as *mut _,
                 );
             }
@@ -56,14 +58,6 @@ impl Program {
         }
 
         Ok(Program { gl, id: program_id })
-    }
-
-    pub fn set_uniforms<'a, K, S>(&mut self, args: S) -> anyhow::Result<()>
-    where
-        K: AsRef<str>,
-        S: AsRef<[(K, shader::Uniform<'a>)]>,
-    {
-        args.as_ref().iter().map(|(k, v)| shader::SetUniform::set_uniform(self, k, *v)).collect()
     }
 
     // pub fn attrib_location(&self, name: &str) -> anyhow::Result<gl::types::GLint> {
@@ -110,6 +104,27 @@ impl Program {
     }
 }
 
+pub struct ProgramCtl<'p, 'm> {
+    program: &'p mut Program,
+    master: PhantomData<&'m mut ProgramCtlMaster>,
+}
+
+impl<'p, 'm> shader::SetUniform for ProgramCtl<'p, 'm> {
+    fn set_uniform<T: AsRef<str>>(&mut self, key: T, value: shader::Uniform) -> anyhow::Result<()> {
+        self.program.set_uniform(key, value)
+    }
+}
+
+/// Denies mutual activation of shaders in compile time.
+pub struct ProgramCtlMaster;
+
+impl ProgramCtlMaster {
+    pub fn set_used<'me, 'prg>(&'me mut self, target: &'prg mut Program) -> ProgramCtl<'prg, 'me> {
+        shader::SetUsed::set_used(target);
+        ProgramCtl { program: target, master: PhantomData }
+    }
+}
+
 impl shader::SetUsed for Program {
     fn set_used(&self) {
         unsafe {
@@ -117,7 +132,6 @@ impl shader::SetUsed for Program {
         }
     }
 }
-
 
 impl shader::SetUniform for Program {
     /// Don't use float64. Perhaps it's worth to consider T: Into<[f32; 3]> | Into<f32; 4>
@@ -216,7 +230,7 @@ fn shader_from_source(
 ) -> anyhow::Result<gl::types::GLuint> {
     let id = unsafe { gl.CreateShader(kind) };
     unsafe {
-        gl.ShaderSource(id, 1, &source.as_ptr(), std::ptr::null());
+        gl.ShaderSource(id, 1, &source.as_ptr(), ptr::null());
         gl.CompileShader(id);
     }
 
@@ -236,7 +250,7 @@ fn shader_from_source(
             gl.GetShaderInfoLog(
                 id,
                 len,
-                std::ptr::null_mut(),
+                ptr::null_mut(),
                 error.as_ptr() as *mut gl::types::GLchar,
             );
         }

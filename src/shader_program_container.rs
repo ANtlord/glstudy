@@ -4,10 +4,10 @@ use anyhow::anyhow;
 use anyhow::Context;
 
 use crate::camera::Camera;
+use crate::domain;
 use crate::movement::set_transformations;
 use crate::render_gl;
 use cgmath::{Deg, Matrix4, One, Rad};
-use crate::domain;
 
 #[allow(unused)]
 mod shader_paths {
@@ -86,7 +86,9 @@ impl ShaderProgramBuilder {
     }
 }
 
-fn set_light_shader_uniforms(light_shader: &mut render_gl::Program) -> anyhow::Result<()> {
+fn set_light_shader_uniforms(
+    light_shader: &mut impl domain::shader::SetUniform,
+) -> anyhow::Result<()> {
     use std::env;
     use std::str::FromStr;
     let value = env::var("VALUE").unwrap_or("0.0".to_owned());
@@ -102,21 +104,23 @@ fn set_light_shader_uniforms(light_shader: &mut render_gl::Program) -> anyhow::R
         // ("material.emissionMap", domain::shader::Uniform::Int(2)), // GL_TEXTURE2
         // ("material.specular", domain::shader::Uniform::Vec3(&[0.5, 0.5, 0.5])),
         ("material.shininess", domain::shader::Uniform::Float32(32.)),
-
         ("spotLight.position", domain::shader::Uniform::Vec3(&pos)),
         ("spotLight.direction", domain::shader::Uniform::Vec3(&[1., 0.0, 0.0])),
         ("spotLight.cutoff", domain::shader::Uniform::Float32(Rad::from(Deg(12.0f32)).0.cos())),
-        ("spotLight.outerCutoff", domain::shader::Uniform::Float32(Rad::from(Deg(15.0f32)).0.cos())),
+        (
+            "spotLight.outerCutoff",
+            domain::shader::Uniform::Float32(Rad::from(Deg(15.0f32)).0.cos()),
+        ),
         ("spotLight.ambient", domain::shader::Uniform::Vec3(&[0.0, 0.0, 0.0])),
-        ("spotLight.diffuse", domain::shader::Uniform::Vec3(&[1., 1., 1.,])),
-        ("spotLight.specular", domain::shader::Uniform::Vec3(&[1., 1., 1.,])),
-
+        ("spotLight.diffuse", domain::shader::Uniform::Vec3(&[1., 1., 1.])),
+        ("spotLight.specular", domain::shader::Uniform::Vec3(&[1., 1., 1.])),
         ("directionalLight.direction", domain::shader::Uniform::Vec3(&[0.0, 1.0, -1.0])),
         ("directionalLight.ambient", domain::shader::Uniform::Vec3(&[0.1, 0.1, 0.5])),
         ("directionalLight.diffuse", domain::shader::Uniform::Vec3(&[0.0, 0.0, 0.0])),
         ("directionalLight.specular", domain::shader::Uniform::Vec3(&[1.0f32, 1., 1.])),
     ];
-    light_shader.set_uniforms(light_shader_uniforms).context("fail setting initial uniforms")
+    domain::shader::set_uniforms(light_shader, light_shader_uniforms)
+        .context("fail setting initial uniforms")
 }
 
 fn ground_model_transformations() -> Matrix4<f32> {
@@ -133,24 +137,31 @@ pub struct ShaderProgramContainer {
 }
 
 impl ShaderProgramContainer {
-    pub fn new(builder: &ShaderProgramBuilder, camera: &Camera) -> anyhow::Result<Self> {
+    pub fn new(
+        builder: &ShaderProgramBuilder,
+        camera: &Camera,
+        control: &mut render_gl::ProgramCtlMaster,
+    ) -> anyhow::Result<Self> {
         let model = Matrix4::one();
         let light_shader = {
             let mut shader_program =
                 builder.get_light_program().context("fail getting light shader")?;
-            set_transformations(&mut shader_program, model, camera.view(), camera.projection())?;
-            set_light_shader_uniforms(&mut shader_program)?;
+            let mut shader_program_ctrl: render_gl::ProgramCtl = control.set_used(&mut shader_program);
+            set_transformations(&mut shader_program_ctrl, model, camera.view(), camera.projection())?;
+            set_light_shader_uniforms(&mut shader_program_ctrl)?;
             shader_program
         };
 
         let lamp_shader = builder.get_lamp_program().context("fail getting lamp shader")?;
         let mut lamp_shader_other =
             builder.get_lamp_program().context("fail getting other lamp shader")?;
-        set_transformations(&mut lamp_shader_other, model, camera.view(), camera.projection())?;
+        set_transformations(
+            &mut control.set_used(&mut lamp_shader_other), model, camera.view(), camera.projection(),
+        )?;
         let mut texture_shader =
             builder.get_vertex_textured_program().context("fail getting textured shader")?;
         set_transformations(
-            &mut texture_shader,
+            &mut control.set_used(&mut texture_shader),
             ground_model_transformations(),
             camera.view(),
             camera.projection(),

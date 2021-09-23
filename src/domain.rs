@@ -88,4 +88,13 @@ pub mod shader {
     pub trait SetUsed {
         fn set_used(&self);
     }
+
+    pub fn set_uniforms<'a, K, S>(shader: &mut impl SetUniform, args: S) -> anyhow::Result<()>
+    where
+        K: AsRef<str>,
+        S: AsRef<[(K, Uniform<'a>)]>,
+    {
+        args.as_ref().iter().map(|(k, v)| shader.set_uniform(k, *v)).collect()
+    }
+
 }

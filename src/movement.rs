@@ -54,13 +54,15 @@ impl Default for MoveBitMap {
     }
 }
 
-pub fn set_transformations<P: shader::SetUniform + shader::SetUsed>(
-    program: &mut P,
+pub fn set_transformations<B>(
+    program: &mut B,
     model: Matrix4<f32>,
     view: Matrix4<f32>,
     projection: Matrix4<f32>,
-) -> anyhow::Result<()> {
-    program.set_used();
+) -> anyhow::Result<()>
+where 
+    B: shader::SetUniform,
+{
     program
         .set_uniform("model", Mat4(&model.as_ref() as &[f32; 16]))
         .context("fail to set model matrix to vertex_textured_program")?;
